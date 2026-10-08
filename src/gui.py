@@ -59,18 +59,63 @@ ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
 def apply_app_icon(window):
-    """Ensure custom icon is set on main window and any toplevel dialogs."""
+    """Ensure custom icon is set on main window and any toplevel dialogs with crisp multi-resolution support."""
     if ICON_PATH.exists():
         try:
             window.iconbitmap(str(ICON_PATH))
         except Exception:
-            try:
-                from PIL import ImageTk, Image
-                img = Image.open(str(ICON_PNG_PATH if ICON_PNG_PATH.exists() else ICON_PATH))
-                photo = ImageTk.PhotoImage(img)
-                window.iconphoto(True, photo)
-            except Exception:
-                pass
+            pass
+    if ICON_PNG_PATH.exists():
+        try:
+            from PIL import ImageTk, Image
+            img = Image.open(str(ICON_PNG_PATH))
+            photos = [
+                ImageTk.PhotoImage(img.resize((s, s), Image.Resampling.LANCZOS))
+                for s in (64, 48, 32, 24, 16)
+            ]
+            window.iconphoto(True, *photos)
+            window._app_icons = photos
+        except Exception:
+            pass
+
+
+def format_voice_display_label(v: dict) -> str:
+    """Format voice entry for UI display.
+    Guarantees readable German names rather than internal random IDs."""
+    name = v.get("name", "").strip() or v.get("id", "").strip()
+    desc = v.get("desc", "").strip()
+    if "(" in name and ")" in name:
+        return name
+    if "(" in desc and ")" in desc:
+        tag = desc.split("(")[-1].replace(")", "").strip()
+        if tag and tag.lower() not in name.lower():
+            return f"{name} ({tag})"
+    return name
+
+
+def extract_voice_id_from_choice(choice: str) -> str:
+    """Resolve a user-facing choice string back to the actual Gemini voice ID."""
+    choice = (choice or "").strip()
+    if not choice:
+        return "Erinome"
+    all_voices = get_all_voices()
+    for v in all_voices:
+        if format_voice_display_label(v) == choice:
+            return v["id"]
+    for v in all_voices:
+        v_name = v.get("name", "").strip()
+        if v_name and (v_name == choice or choice.startswith(v_name)):
+            return v["id"]
+    for v in all_voices:
+        if v.get("id") == choice:
+            return v["id"]
+    if " (" in choice:
+        prefix = choice.split(" (")[0].strip()
+        for v in all_voices:
+            if v.get("id") == prefix or v.get("name") == prefix:
+                return v["id"]
+    return choice
+
 
 
 # Typography & Color Constants for Google Material 3 Expressive System (ZQP Edition)
@@ -1807,7 +1852,7 @@ class SettingsDialog(ctk.CTkToplevel):
         ).pack(anchor="w", pady=(0, 4))
 
         all_v = get_all_voices()
-        v_opts = [f"{v['id']} ({v['desc'].split('(')[-1].replace(')', '')})" for v in all_v]
+        v_opts = [format_voice_display_label(v) for v in all_v]
         self.voice_menu = ctk.CTkOptionMenu(
             left,
             values=v_opts,
@@ -2459,19 +2504,20 @@ class SettingsDialog(ctk.CTkToplevel):
         if not filtered:
             filtered = all_voices
 
-        options = [f"{v['id']} ({v['desc'].split('(')[-1].replace(')', '')})" for v in filtered]
+        options = [format_voice_display_label(v) for v in filtered]
         self.voice_menu.configure(values=options)
         if options:
             self.voice_var.set(options[0])
             self._on_voice_changed(options[0])
 
     def _on_voice_changed(self, choice: str):
-        voice_id = choice.split(" (")[0].strip() if " (" in choice else choice.strip()
+        voice_id = extract_voice_id_from_choice(choice)
         for v in get_all_voices():
             if v["id"] == voice_id:
                 desc = v.get("desc", "")
-                is_custom = (v.get("category") == "🎙️ Eigene / Geklonte Stimmen") or ("(Voice " in choice)
-                self.voice_bio_title.configure(text=choice)
+                is_custom = (v.get("category") == "🎙️ Eigene / Geklonte Stimmen") or v.get("type") == "prompted"
+                display_name = v.get("name", v["id"])
+                self.voice_bio_title.configure(text=display_name)
                 self.voice_desc_lbl.configure(text=desc)
                 if is_custom:
                     self.voice_bio_badge.configure(text="Geklont / Custom", fg_color=("#D1FAE5", "#064E3B"), text_color=("#065F46", "#6EE7B7"))
@@ -2739,7 +2785,7 @@ class GeminiTTSApp(ctk.CTk):
         self.voice_categories = ["Alle Stimmen", "🎙️ Eigene / Geklonte Stimmen", "⭐ Favoriten & Allrounder", "🇩🇪 Deutsche Stimmen & Rollen", "📖 Erzähler & Storytelling"]
         self.voice_category_var = ctk.StringVar(value="Alle Stimmen")
         all_initial_voices = get_all_voices()
-        voice_options = [f"{v['id']} ({v['desc'].split('(')[-1].replace(')', '')})" for v in all_initial_voices]
+        voice_options = [format_voice_display_label(v) for v in all_initial_voices]
         self.voice_var = ctk.StringVar(value=voice_options[0] if voice_options else "Erinome (Weiblich)")
         lang_options = [l["name"] for l in SUPPORTED_LANGUAGES]
         self.lang_var = ctk.StringVar(value=lang_options[0] if lang_options else "🇩🇪 Deutsch (Standard)")
@@ -2812,7 +2858,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.pill_voice = ctk.CTkButton(
             pills_frame,
-            text="🗣️ Stimme ▾",
+            text="Stimme: Erinome ▾",
             command=lambda: self._open_settings_dialog("voice"),
             height=32,
             corner_radius=16,
@@ -2827,7 +2873,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.pill_style = ctk.CTkButton(
             pills_frame,
-            text="🎭 Regie ▾",
+            text="Stil: Sachlich ▾",
             command=lambda: self._open_settings_dialog("style"),
             height=32,
             corner_radius=16,
@@ -2842,7 +2888,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.pill_format = ctk.CTkButton(
             pills_frame,
-            text="🎵 Format ▾",
+            text="Audio: AAC 64k ▾",
             command=lambda: self._open_settings_dialog("format"),
             height=32,
             corner_radius=16,
@@ -2861,7 +2907,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.btn_settings = ctk.CTkButton(
             actions_frame,
-            text="⚙️ Studio-Einstellungen",
+            text="⚙️ Einstellungen",
             command=lambda: self._open_settings_dialog("voice"),
             height=36,
             corner_radius=18,
@@ -3471,10 +3517,12 @@ class GeminiTTSApp(ctk.CTk):
             corner_radius=17,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             state="disabled",
-            fg_color=M3_PRIMARY,
+            fg_color=M3_SURFACE_CONTAINER,
             hover_color=M3_PRIMARY_HOVER,
             text_color=("#FFFFFF", "#00201C"),
-            text_color_disabled=COLOR_MUTED_TEXT
+            text_color_disabled=("#7B8B87", "#647572"),
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
         )
         self.play_btn.grid(row=0, column=0, padx=(0, 6))
 
@@ -3581,25 +3629,46 @@ class GeminiTTSApp(ctk.CTk):
         if not hasattr(self, "pill_voice") or not self.pill_voice.winfo_exists():
             return
 
-        # 1. Voice Pill
+        # 1. Voice Pill (Clean German name, never cryptic ID)
         raw_voice = self.voice_var.get()
-        short_voice = raw_voice.split(" (")[0].strip() if " (" in raw_voice else raw_voice.strip()
-        self.pill_voice.configure(text=f"🗣️ {short_voice} ▾")
+        voice_id = extract_voice_id_from_choice(raw_voice)
+        display_name = raw_voice.split(" (")[0].strip() if " (" in raw_voice else raw_voice.strip()
+        for v in get_all_voices():
+            if v.get("id") == voice_id:
+                n = v.get("name", "").strip() or v.get("id", "").strip()
+                display_name = n.split(" (")[0].strip() if " (" in n else n
+                break
 
-        # 2. Style Pill
+        if len(display_name) > 13:
+            display_name = display_name[:12] + "…"
+        self.pill_voice.configure(text=f"Stimme: {display_name} ▾")
+
+        # 2. Style Pill (Clean compact name, no emoji font measurement bugs)
         style_text = self._get_current_system_prompt()
         if not style_text:
             style_label = "Standard"
         else:
-            style_label = getattr(self, "active_style_preset_name", "Regie")
-            if not style_label:
-                style_label = "Regie"
-        self.pill_style.configure(text=f"🎭 {style_label} ▾")
+            style_label = getattr(self, "active_style_preset_name", "Regie") or "Regie"
 
-        # 3. Format Pill
+        if "Sachlich" in style_label:
+            short_style = "Sachlich"
+        elif len(style_label) > 11:
+            short_style = style_label[:10] + "…"
+        else:
+            short_style = style_label
+        self.pill_style.configure(text=f"Stil: {short_style} ▾")
+
+        # 3. Format Pill (Audio: AAC 64k ▾)
         codec_name = self.codec_var.get().replace("libmp3lame", "mp3").replace("pcm_s16le", "wav").upper()
+        if "AAC" in codec_name:
+            codec_name = "AAC"
+        elif "MP3" in codec_name:
+            codec_name = "MP3"
+        elif "WAV" in codec_name:
+            codec_name = "WAV"
+
         bitrate_raw = self.bitrate_var.get().replace(" kbit/s", "k").replace(" ", "")
-        self.pill_format.configure(text=f"🎵 {codec_name} {bitrate_raw} ▾")
+        self.pill_format.configure(text=f"Audio: {codec_name} {bitrate_raw} ▾")
 
     # ------------------ Mode Switching (Zero Position Shift) ------------------
 
@@ -4001,7 +4070,13 @@ class GeminiTTSApp(ctk.CTk):
     def _play_batch_item_audio(self, audio_path: Path):
         self.current_converted_file = audio_path
         self.player.load(audio_path)
-        self.play_btn.configure(state="normal", text="▶ Abspielen")
+        self.play_btn.configure(
+            state="normal",
+            fg_color=M3_PRIMARY,
+            text_color=("#FFFFFF", "#00201C"),
+            border_width=0,
+            text="▶ Abspielen"
+        )
         self.stop_btn.configure(state="normal")
         self.export_btn.configure(state="normal")
         self.timeline_slider.configure(state="normal")
@@ -4196,10 +4271,7 @@ class GeminiTTSApp(ctk.CTk):
         self._update_counters()
 
     def _get_selected_voice_id(self) -> str:
-        raw = self.voice_var.get()
-        if " (" in raw:
-            return raw.split(" (")[0].strip()
-        return raw.strip()
+        return extract_voice_id_from_choice(self.voice_var.get())
 
     def _get_selected_model_id(self) -> str:
         selected_model_name = self.model_var.get()
@@ -4226,13 +4298,14 @@ class GeminiTTSApp(ctk.CTk):
             filtered = all_voices
             self.voice_category_var.set("Alle Stimmen")
 
-        options = [f"{v['id']} ({v['desc'].split('(')[-1].replace(')', '')})" for v in filtered]
-        self.voice_menu.configure(values=options)
+        options = [format_voice_display_label(v) for v in filtered]
+        if hasattr(self, "voice_menu"):
+            self.voice_menu.configure(values=options)
 
         target_option = None
         if select_voice_id:
             for opt in options:
-                if opt.startswith(select_voice_id + " ") or opt == select_voice_id or select_voice_id in opt:
+                if extract_voice_id_from_choice(opt) == select_voice_id or select_voice_id in opt:
                     target_option = opt
                     break
 
@@ -4247,8 +4320,10 @@ class GeminiTTSApp(ctk.CTk):
         voice_id = self._get_selected_voice_id()
         for v in get_all_voices():
             if v["id"] == voice_id:
-                self.voice_desc_lbl.configure(text=v["desc"])
+                if hasattr(self, "voice_desc_lbl"):
+                    self.voice_desc_lbl.configure(text=v["desc"])
                 break
+        self._update_header_status_pills()
 
     def _on_voice_category_changed(self, category: str):
         all_voices = get_all_voices()
@@ -4260,8 +4335,9 @@ class GeminiTTSApp(ctk.CTk):
         if not filtered:
             filtered = all_voices
 
-        options = [f"{v['id']} ({v['desc'].split('(')[-1].replace(')', '')})" for v in filtered]
-        self.voice_menu.configure(values=options)
+        options = [format_voice_display_label(v) for v in filtered]
+        if hasattr(self, "voice_menu"):
+            self.voice_menu.configure(values=options)
         if options:
             self.voice_var.set(options[0])
             self._on_voice_changed(options[0])
@@ -4446,7 +4522,13 @@ class GeminiTTSApp(ctk.CTk):
             text=f"✅ Erfolgreich generiert ({duration:.1f}s)! Datei: {filename} ({file_size_kb:.1f} KB)",
             text_color="#10B981"
         )
-        self.play_btn.configure(state="normal", text="▶ Abspielen")
+        self.play_btn.configure(
+            state="normal",
+            fg_color=M3_PRIMARY,
+            text_color=("#FFFFFF", "#00201C"),
+            border_width=0,
+            text="▶ Abspielen"
+        )
         self.stop_btn.configure(state="normal")
         self.export_btn.configure(state="normal")
         self.timeline_slider.configure(state="normal")

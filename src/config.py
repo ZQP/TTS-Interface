@@ -198,7 +198,7 @@ def get_all_voices() -> list:
             "type": c.get("type", "prompted"),
             "sample_audio": c.get("sample_audio", "")
         })
-    return formatted_custom + AVAILABLE_VOICES
+    return AVAILABLE_VOICES + formatted_custom
 
 
 # Load environment variables (from .env next to exe/script or current dir)
@@ -207,7 +207,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
     load_dotenv(Path.cwd() / ".env")
 
 # Application & Update Configuration
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.4.1"
 GITHUB_REPO = "MaKammi/TTS-Interface"
 
 # API Configuration

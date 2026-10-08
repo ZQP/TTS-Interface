@@ -5,7 +5,7 @@
 ; =====================================================================
 
 #define MyAppName "Gemini TTS Studio"
-#define MyAppVersion "2.4.0"
+#define MyAppVersion "2.4.1"
 #define MyAppPublisher "MaKammi"
 #define MyAppURL "https://github.com/MaKammi/TTS-Interface"
 #define MyAppExeName "GeminiTTSStudio.exe"
