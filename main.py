@@ -12,6 +12,13 @@ from src.gui import GeminiTTSApp
 
 
 def main():
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("makammi.geminittsstudio.desktop.2.3")
+        except Exception:
+            pass
+
     app = GeminiTTSApp()
     app.mainloop()
 

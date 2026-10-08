@@ -8,6 +8,7 @@ Rock-solid stable layout hierarchy where no elements jump or shift when switchin
 import base64
 import math
 import os
+import sys
 import struct
 import subprocess
 import threading
@@ -33,6 +34,10 @@ from .config import (
     save_api_key,
     OUTPUT_DIR,
     TEMP_DIR,
+    ICON_PATH,
+    ICON_PNG_PATH,
+    get_output_dir,
+    set_output_dir,
     load_custom_styles,
     save_custom_style,
     delete_custom_style,
@@ -52,6 +57,21 @@ from .updater import UpdateService, format_release_notes
 
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
+
+def apply_app_icon(window):
+    """Ensure custom icon is set on main window and any toplevel dialogs."""
+    if ICON_PATH.exists():
+        try:
+            window.iconbitmap(str(ICON_PATH))
+        except Exception:
+            try:
+                from PIL import ImageTk, Image
+                img = Image.open(str(ICON_PNG_PATH if ICON_PNG_PATH.exists() else ICON_PATH))
+                photo = ImageTk.PhotoImage(img)
+                window.iconphoto(True, photo)
+            except Exception:
+                pass
+
 
 # Typography & Color Constants for Google Material 3 Expressive System (ZQP Edition)
 FONT_FAMILY = "Segoe UI"
@@ -303,6 +323,7 @@ class APIKeyDialog(ctk.CTkToplevel):
         self.geometry("540x300")
         self.resizable(False, False)
         self.on_save_callback = on_save_callback
+        apply_app_icon(self)
 
         frame = ctk.CTkFrame(
             self,
@@ -437,6 +458,7 @@ class UpdateDialog(ctk.CTkToplevel):
         self.title("Gemini TTS Studio Update")
         self.geometry("620x480")
         self.resizable(False, False)
+        apply_app_icon(self)
 
         frame = ctk.CTkFrame(
             self,
@@ -617,6 +639,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         self.title("Gemini 3.8 Voice Studio & Stimm-Klonen")
         self.geometry("780x760")
         self.minsize(720, 640)
+        apply_app_icon(self)
 
         self.audio_player = AudioPlayer()
         self.current_preview_file: Optional[Path] = None
@@ -1582,6 +1605,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.title("Gemini TTS Studio - Einstellungen")
         self.geometry("780x720")
         self.minsize(720, 620)
+        apply_app_icon(self)
 
         # Working variables initialized from parent
         self.voice_cat_var = ctk.StringVar(value=parent.voice_category_var.get())
@@ -2283,6 +2307,89 @@ class SettingsDialog(ctk.CTkToplevel):
             text_color=COLOR_MUTED_TEXT
         ).pack(anchor="w", pady=(0, 16))
 
+        # Storage / Output Path Box
+        storage_box = ctk.CTkFrame(
+            f,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=14,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        storage_box.pack(fill="x", pady=(0, 12))
+
+        storage_content = ctk.CTkFrame(storage_box, fg_color="transparent")
+        storage_content.pack(fill="x", padx=14, pady=12)
+
+        ctk.CTkLabel(
+            storage_content,
+            text="📁 Standard-Speicherort für Audio-Dateien",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(anchor="w", pady=(0, 2))
+
+        ctk.CTkLabel(
+            storage_content,
+            text="Hierhin werden generierte Sprachaufnahmen und Batch-Exporte standardmäßig abgelegt.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(anchor="w", pady=(0, 8))
+
+        dir_row = ctk.CTkFrame(storage_content, fg_color="transparent")
+        dir_row.pack(fill="x")
+
+        self.out_dir_entry = ctk.CTkEntry(
+            dir_row,
+            height=34,
+            corner_radius=10,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT,
+            fg_color=("#FFFFFF", "#0E1A18"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.out_dir_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.out_dir_entry.insert(0, str(get_output_dir()))
+
+        def choose_folder():
+            chosen = filedialog.askdirectory(title="Standard-Ausgabeordner wählen", initialdir=self.out_dir_entry.get())
+            if chosen:
+                self.out_dir_entry.delete(0, "end")
+                self.out_dir_entry.insert(0, chosen)
+
+        def open_folder():
+            p = Path(self.out_dir_entry.get().strip())
+            p.mkdir(parents=True, exist_ok=True)
+            if sys.platform == "win32":
+                os.startfile(str(p))
+            else:
+                subprocess.Popen(["xdg-open", str(p)])
+
+        ctk.CTkButton(
+            dir_row,
+            text="Ordner wählen",
+            command=choose_folder,
+            width=100,
+            height=34,
+            corner_radius=10,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER_HIGH,
+            hover_color=M3_PRIMARY_CONTAINER,
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            dir_row,
+            text="Explorer öffnen",
+            command=open_folder,
+            width=110,
+            height=34,
+            corner_radius=10,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER_HIGH,
+            hover_color=M3_PRIMARY_CONTAINER,
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(side="left")
+
         # Auto-Update Box
         up_box = ctk.CTkFrame(
             f,
@@ -2529,6 +2636,16 @@ class SettingsDialog(ctk.CTkToplevel):
         self.parent_app.active_style_preset_name = self.active_style_preset
         self.parent_app.auto_update_on_start = self.auto_update_var.get()
 
+        # Update and persist output directory
+        if hasattr(self, "out_dir_entry"):
+            out_path_str = self.out_dir_entry.get().strip()
+            if out_path_str:
+                p_out = Path(out_path_str)
+                set_output_dir(p_out)
+                self.parent_app.batch_output_dir = p_out / "batch_exports"
+                if hasattr(self.parent_app, "batch_outdir_lbl"):
+                    self.parent_app.batch_outdir_lbl.configure(text=str(self.parent_app.batch_output_dir))
+
         self.parent_app._update_header_status_pills()
         self._on_close()
 
@@ -2588,6 +2705,16 @@ class GeminiTTSApp(ctk.CTk):
         self.title("Gemini TTS Studio - Windows Interface")
         self.geometry("1020x720")
         self.minsize(860, 540)
+
+        # Set Windows Taskbar Icon & App ID
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                myappid = "makammi.geminittsstudio.app.2.3"
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            except Exception:
+                pass
+        apply_app_icon(self)
 
         self.tts_service = GeminiTTSService()
         self.player = AudioPlayer()

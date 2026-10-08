@@ -63,13 +63,26 @@ python main.py
 
 ---
 
-## Standalone EXE erstellen
+## Standalone EXE & Windows Setup-Installer erstellen
 
-Um eine eigenständige Windows-Programmdatei (`dist/GeminiTTSStudio.exe`) zu erstellen, die auf jedem Windows-PC ohne Python läuft:
+### 1. Standalone Portable EXE erstellen
+Erstellt eine eigenständige `.exe` unter `dist/GeminiTTSStudio.exe`:
 ```bash
 python build_exe.py
 ```
-*(Oder einfach per Doppelklick auf `build.bat` ausführen.)*
+*(Oder per Doppelklick auf `build.bat` ausführen.)*
+
+### 2. Windows Installationsprogramm (Inno Setup) erstellen
+Erstellt einen vollwertigen Windows-Installer (`dist/installer/GeminiTTSStudio-Setup-2.4.0.exe`), der **ohne Administratorrechte** im Benutzerprofil installiert werden kann:
+```bash
+python build_installer.py
+```
+*(Oder per Doppelklick auf `build_installer.bat` ausführen.)*
+
+- **Ohne Adminrechte**: Installiert nahtlos in `%LOCALAPPDATA%\Programs\GeminiTTSStudio` (wie VS Code User Installer).
+- **Keine Dateiverunreinigung**: Konfigurationen liegen in `%APPDATA%\GeminiTTSStudio`, Temp-Audios in `%LOCALAPPDATA%\GeminiTTSStudio\temp`, Ausgabedateien im Musik-Ordner (`~/Music/Gemini TTS Studio`).
+- **Verknüpfungen**: Startmenü- und Desktop-Icons mit individuellem App-Icon.
+- **GitHub Actions**: Automatische Builds und Release-Bereitstellung über `.github/workflows/build-and-release.yml`.
 
 ---
 

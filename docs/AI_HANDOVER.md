@@ -49,12 +49,16 @@ Dieses Dokument richtet sich an nachfolgende **KI-Agenten (Gemini, Claude, GPT, 
 
 - **Gemini TTS Preview Endpunkte**: `gemini-3.1-flash-tts-preview` und `gemini-2.5-flash-preview-tts` akzeptieren **keine** `systemInstruction` im Payload (wirft sonst API-Fehler `Developer instruction is not enabled for this model`). Regieanweisungen/Sprechstile werden jedoch nativ verarbeitet, wenn sie als `[Tone: ...]` am Anfang jedes Chunks mitgegeben werden. Das Modell liest diese nicht vor, sondern setzt sie als Sprechstil um!
 - **Timeouts bei langen Texten**: Die Smart-Chunking-Engine in `src/tts_service.py` zerlegt Texte an Satzgrenzen in Blöcke à ~300 Zeichen und konkateniert die resultierenden PCM-Bytes nahtlos.
-- **PyInstaller Bundling**: `build_exe.py` sammelt `--collect-all=customtkinter`, `--collect-all=imageio_ffmpeg`, `--collect-all=pygame`, `--collect-all=pypdf`, `--collect-all=docx` und prüft, ob die Ziel-EXE gerade geöffnet ist, um Sperrfehler zu vermeiden.
+- **PyInstaller Bundling & Assets**: `build_exe.py` sammelt `--collect-all=customtkinter`, `--collect-all=imageio_ffmpeg`, `--collect-all=pygame`, `--collect-all=pypdf`, `--collect-all=docx`, bindet das neue App-Icon ein (`--icon=assets/icon.ico`) und kopiert Assets (`--add-data=assets;assets`).
+- **Inno Setup Windows Installer**: `build_installer.py` und `installer.iss` erzeugen einen vollwertigen Windows-Installer (`dist/installer/GeminiTTSStudio-Setup-2.3.1.exe`) mit `PrivilegesRequired=lowest` (Installation in `%LOCALAPPDATA%\Programs\GeminiTTSStudio` ohne UAC-Elevation).
+- **Dateipfade & Windows-Standards**: Das Programm legt keine temporären oder Ausgabedateien im Programmordner ab. Konfiguration liegt in `%APPDATA%\GeminiTTSStudio`, Temp-Audios in `%LOCALAPPDATA%\GeminiTTSStudio\temp`, Ausgabedateien im Standard-Musikordner (`~/Music/Gemini TTS Studio`). Automatische Migration älterer Dateien wird beim Start ausgeführt.
 
 ---
 
 ## 4. Nächste geplante Erweiterungen (Roadmap)
 
-1. **Multi-Speaker / Skript-Modus**: Parsing von Sprecher-Präfixen wie `[Puck]: Hallo` und `[Aoede]: Hi` mit automatischer Stimmenzuweisung.
-2. **Audio-Visualisierung**: Wellenform-Anzeige (Waveform) im Player.
-3. **Audio-Ducking / Hintergrundmusik**: Sanftes Unterlegen von Ambient-Musik mit automatischer Absenkung bei Sprache.
+1. **Multi-Speaker / Skript-Modus**: Parsing von Sprecher-Präfixen wie `[Puck]: Hallo` und `[Aoede]: Hi` mit automatischer Stimmenzuweisung für Dialoge/Hörspiele.
+2. **Phonetisches Wörterbuch & Aussprache-Korrektur**: Benutzerdefiniertes Lexikon für Eigennamen, Abkürzungen und Fachbegriffe (z.B. "SQL", "ChatGPT").
+3. **Audio-Ducking / Hintergrundmusik**: Sanftes Unterlegen von Ambient-Musik mit automatischer Absenkung bei Sprache und Intro/Outro-Jingles.
+4. **Untertitel- & Video-Synchronisation**: Export von zeitgenauen `.srt` und `.vtt`-Untertiteln passend zur generierten Sprache.
+5. **Generierungs-Verlauf & A/B-Hörvergleich**: Schnelles Umschalten und Gegenüberstellen von zwei Stimm- oder Tonfall-Varianten.

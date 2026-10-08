@@ -8,21 +8,119 @@ from pathlib import Path
 from dotenv import load_dotenv, set_key
 
 import sys
+import tempfile
+import shutil
 
-# Paths - support both frozen EXE and script mode
+# Application & Asset Paths
 if getattr(sys, "frozen", False):
     BASE_DIR = Path(sys.executable).resolve().parent
 else:
     BASE_DIR = Path(__file__).resolve().parent.parent
 
-ENV_FILE = BASE_DIR / ".env"
-OUTPUT_DIR = BASE_DIR / "output"
-TEMP_DIR = BASE_DIR / "temp"
-CUSTOM_STYLES_FILE = BASE_DIR / "custom_styles.json"
-CUSTOM_VOICES_FILE = BASE_DIR / "custom_voices.json"
+# Check for Portable Mode (e.g. running from USB stick or explicit flag)
+IS_PORTABLE = (
+    (BASE_DIR / "portable").exists()
+    or (BASE_DIR / "portable.txt").exists()
+    or os.getenv("GEMINI_TTS_PORTABLE", "0") == "1"
+)
 
-OUTPUT_DIR.mkdir(exist_ok=True)
-TEMP_DIR.mkdir(exist_ok=True)
+def get_asset_path(filename: str) -> Path:
+    """Locate bundled assets in both source and frozen PyInstaller mode."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        p = Path(sys._MEIPASS) / "assets" / filename
+        if p.exists():
+            return p
+    return BASE_DIR / "assets" / filename
+
+ICON_PATH = get_asset_path("icon.ico")
+ICON_PNG_PATH = get_asset_path("icon.png")
+
+# Configure directories based on installation mode
+if IS_PORTABLE:
+    APP_DATA_DIR = BASE_DIR
+    TEMP_DIR = BASE_DIR / "temp"
+    DEFAULT_OUTPUT_DIR = BASE_DIR / "output"
+else:
+    if sys.platform == "win32":
+        APP_DATA_DIR = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming")) / "GeminiTTSStudio"
+        TEMP_DIR = Path(os.getenv("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "GeminiTTSStudio" / "temp"
+    else:
+        APP_DATA_DIR = Path.home() / ".config" / "GeminiTTSStudio"
+        TEMP_DIR = Path(tempfile.gettempdir()) / "GeminiTTSStudio"
+
+    # Default output directory: Windows Music folder (or Documents as fallback)
+    user_music = Path.home() / "Music" / "Gemini TTS Studio"
+    user_docs = Path.home() / "Documents" / "Gemini TTS Studio"
+    DEFAULT_OUTPUT_DIR = user_music if (Path.home() / "Music").exists() else user_docs
+
+APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+ENV_FILE = APP_DATA_DIR / ".env"
+CUSTOM_STYLES_FILE = APP_DATA_DIR / "custom_styles.json"
+CUSTOM_VOICES_FILE = APP_DATA_DIR / "custom_voices.json"
+SETTINGS_FILE = APP_DATA_DIR / "settings.json"
+
+def _migrate_legacy_data():
+    """Migrate config and voice files from BASE_DIR if they exist from a previous version."""
+    if APP_DATA_DIR == BASE_DIR:
+        return
+    try:
+        old_env = BASE_DIR / ".env"
+        if old_env.exists() and not ENV_FILE.exists():
+            shutil.copy2(old_env, ENV_FILE)
+
+        old_styles = BASE_DIR / "custom_styles.json"
+        if old_styles.exists() and not CUSTOM_STYLES_FILE.exists():
+            shutil.copy2(old_styles, CUSTOM_STYLES_FILE)
+
+        old_voices = BASE_DIR / "custom_voices.json"
+        if old_voices.exists() and not CUSTOM_VOICES_FILE.exists():
+            shutil.copy2(old_voices, CUSTOM_VOICES_FILE)
+    except Exception as e:
+        print(f"Hinweis bei Dateimigration: {e}")
+
+_migrate_legacy_data()
+
+def load_app_settings() -> dict:
+    """Load persistent application settings from settings.json."""
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "output_dir": str(DEFAULT_OUTPUT_DIR),
+        "auto_update": True,
+    }
+
+def save_app_settings(settings: dict):
+    """Save persistent application settings to settings.json."""
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Fehler beim Speichern der Einstellungen: {e}")
+
+def get_output_dir() -> Path:
+    """Get active output directory for exported audio files."""
+    settings = load_app_settings()
+    out_str = settings.get("output_dir", str(DEFAULT_OUTPUT_DIR))
+    p = Path(out_str)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+def set_output_dir(path: Path):
+    """Update active output directory for exported audio files."""
+    settings = load_app_settings()
+    settings["output_dir"] = str(path.resolve())
+    save_app_settings(settings)
+    global OUTPUT_DIR
+    OUTPUT_DIR = path.resolve()
+
+OUTPUT_DIR = get_output_dir()
+
 
 
 def load_custom_styles() -> dict:
@@ -109,7 +207,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
     load_dotenv(Path.cwd() / ".env")
 
 # Application & Update Configuration
-APP_VERSION = "2.3.1"
+APP_VERSION = "2.4.0"
 GITHUB_REPO = "MaKammi/TTS-Interface"
 
 # API Configuration

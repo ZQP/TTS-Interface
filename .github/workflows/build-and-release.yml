@@ -1,0 +1,69 @@
+name: Build and Release Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (z. B. v2.3.1)'
+        required: false
+        default: 'v2.3.1'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Standalone EXE & Windows Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pillow
+
+      - name: Run Document Parser & Batch Tests
+        run: |
+          python -X utf8 test_batch.py
+
+      - name: Build Standalone Windows Executable
+        run: |
+          python build_exe.py
+
+      - name: Build Inno Setup Non-Admin Installer
+        run: |
+          python build_installer.py
+
+      - name: Prepare Release Artifacts
+        id: prepare_assets
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path "dist/installer/*.exe" | Select-Object -First 1
+          Write-Host "Installer found: $($setup.FullName)"
+          
+          # Create copy with clean naming for portable distribution
+          Copy-Item "dist/GeminiTTSStudio.exe" "dist/GeminiTTSStudio-Portable.exe"
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          files: |
+            dist/installer/GeminiTTSStudio-Setup-*.exe
+            dist/GeminiTTSStudio-Portable.exe
+          draft: false
+          prerelease: false
+          generate_release_notes: true

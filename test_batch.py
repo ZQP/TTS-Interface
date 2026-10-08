@@ -64,7 +64,7 @@ def test_parsers():
     print(f"\n[+] BatchProcessor added {len(items)} items from MD file.")
     assert len(bp.items) == 3
 
-    print("\n✅ ALL DOCUMENT PARSER & CHAPTER TESTS PASSED SUCCESSFULLY!")
+    print("\n[+] ALL DOCUMENT PARSER & CHAPTER TESTS PASSED SUCCESSFULLY!")
 
 
 if __name__ == "__main__":

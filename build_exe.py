@@ -48,7 +48,9 @@ def build_executable():
         "--collect-all=pygame",
         "--collect-all=pypdf",
         "--collect-all=docx",
+        "--icon=assets/icon.ico",
         "--add-data=.env.example;.",
+        "--add-data=assets;assets",
         "main.py"
     ]
 
