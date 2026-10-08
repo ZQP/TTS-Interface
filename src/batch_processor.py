@@ -152,12 +152,12 @@ class BatchProcessor:
         def worker():
             for idx, item in enumerate(self.items):
                 if self.cancel_requested:
-                    item.status = "Abgebrochen ⏹"
+                    item.status = "Abgebrochen"
                     if on_item_update:
                         on_item_update(item)
                     continue
 
-                if item.status == "Fertig ✅":
+                if "Fertig" in item.status:
                     continue
 
                 clean_title = "".join(c for c in item.title if c.isalnum() or c in (" ", "_", "-")).strip()
@@ -208,7 +208,7 @@ class BatchProcessor:
                         )
 
                         if self.cancel_requested:
-                            item.status = "Abgebrochen ⏹"
+                            item.status = "Abgebrochen"
                             if on_item_update:
                                 on_item_update(item)
                             break
@@ -237,11 +237,11 @@ class BatchProcessor:
 
                     if not self.cancel_requested:
                         item.output_audio = last_converted
-                        item.status = "Fertig ✅"
+                        item.status = "Fertig"
                         item.progress = 1.0
 
                 except Exception as e:
-                    item.status = "Fehler ❌"
+                    item.status = "Fehler"
                     item.error_msg = str(e)
                     print(f"Batch Error on item '{item.title}': {e}")
 

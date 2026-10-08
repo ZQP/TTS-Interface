@@ -426,7 +426,7 @@ class APIKeyDialog(ctk.CTkToplevel):
 
         check_update_btn = ctk.CTkButton(
             info_row,
-            text="🔄 Auf Updates prüfen",
+            text="Auf Updates prüfen",
             command=self._check_updates,
             height=28,
             corner_radius=14,
@@ -519,7 +519,7 @@ class UpdateDialog(ctk.CTkToplevel):
 
         title_lbl = ctk.CTkLabel(
             header_row,
-            text=f"✨ Update verfügbar: {update_info.get('latest_version', '')}",
+            text=f"Update verfügbar: {update_info.get('latest_version', '')}",
             font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
@@ -592,7 +592,7 @@ class UpdateDialog(ctk.CTkToplevel):
 
         self.update_btn = ctk.CTkButton(
             btn_row,
-            text="🚀 Jetzt aktualisieren & neu starten",
+            text="Jetzt aktualisieren & neu starten",
             command=self._start_update,
             height=38,
             corner_radius=19,
@@ -625,7 +625,7 @@ class UpdateDialog(ctk.CTkToplevel):
         if self.is_downloading:
             return
         self.is_downloading = True
-        self.update_btn.configure(state="disabled", text="⏳ Lade Update herunter...")
+        self.update_btn.configure(state="disabled", text="Lade Update herunter...")
         self.cancel_btn.configure(state="disabled")
         self.progress_bar.pack(fill="x", padx=20, pady=(0, 8))
         self.progress_bar.set(0.05)
@@ -657,7 +657,7 @@ class UpdateDialog(ctk.CTkToplevel):
     def _on_download_failed(self):
         self.is_downloading = False
         self.progress_bar.pack_forget()
-        self.update_btn.configure(state="normal", text="🚀 Erneut versuchen")
+        self.update_btn.configure(state="normal", text="Erneut versuchen")
         self.cancel_btn.configure(state="normal")
         self.status_lbl.configure(text="Fehler beim Herunterladen des Updates.", text_color=M3_ERROR)
         messagebox.showerror("Update fehlgeschlagen", "Das Update konnte nicht heruntergeladen werden. Bitte prüfe deine Internetverbindung.")
@@ -722,7 +722,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         title_lbl = ctk.CTkLabel(
             header,
-            text="🎨 Gemini 3.8 Voice Studio & Stimm-Klonen",
+            text="Gemini 3.8 Voice Studio & Stimm-Klonen",
             font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
@@ -753,9 +753,9 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         self.tab_frames: Dict[str, ctk.CTkFrame] = {}
 
         tabs_info = [
-            ("design", "🎨 Voice Design (Prompt)"),
-            ("replicate", "🎙️ Voice Replication (Klon)"),
-            ("manage", "🔑 Meine Stimmen & IDs")
+            ("design", "Voice Design (Prompt)"),
+            ("replicate", "Voice Replication (Klon)"),
+            ("manage", "Meine Stimmen & IDs")
         ]
 
         for tab_id, label in tabs_info:
@@ -827,7 +827,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             info_card,
-            text="✨ Weltweit & in Deutschland voll verfügbar: Beschreibe eine Stimme in Alltagssprache. Gemini 3.8 erzeugt daraus ein hochauflösendes, dauerhaftes Stimm-Profil ohne Audioaufnahmen.",
+            text="Weltweit & in Deutschland voll verfügbar: Beschreibe eine Stimme in Alltagssprache. Gemini 3.8 erzeugt daraus ein hochauflösendes, dauerhaftes Stimm-Profil ohne Audioaufnahmen.",
             wraplength=660,
             justify="left",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
@@ -876,7 +876,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         ctk.CTkLabel(lang_box, text="Basissprache:", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", pady=(0, 4))
         self.vd_lang_menu = ctk.CTkOptionMenu(
             lang_box,
-            values=["🇩🇪 Deutsch (de-DE)", "🇺🇸 Englisch US (en-US)", "🇬🇧 Englisch UK (en-GB)", "🇫🇷 Französisch (fr-FR)", "🇪🇸 Spanisch (es-ES)", "🇮🇹 Italienisch (it-IT)"],
+            values=["Deutsch (de-DE)", "Englisch US (en-US)", "Englisch UK (en-GB)", "Französisch (fr-FR)", "Spanisch (es-ES)", "Italienisch (it-IT)"],
             height=36,
             width=160,
             corner_radius=10,
@@ -890,15 +890,15 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         row2 = ctk.CTkFrame(form_frame, fg_color="transparent")
         row2.pack(fill="x", pady=(0, 6))
 
-        ctk.CTkLabel(row2, text="📋 Schnellvorlage wählen:", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(side="left", padx=(0, 10))
+        ctk.CTkLabel(row2, text="Schnellvorlage wählen:", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(side="left", padx=(0, 10))
         self.vd_templates = {
-            "✨ Eigene Beschreibung (Freitext)": "",
-            "📖 Hörbuch-Erzähler (Warm & Sonor)": "Eine warme, sonore und beruhigende männliche Erzählerstimme Mitte 50 mit tiefer Resonanz, getragenem Sprechtempo und exzellenter deutscher Artikulation.",
-            "📰 Seriöse Nachrichtensprecherin": "Eine sachliche, präzise und klar artikulierte weibliche Sprecherin Mitte 30 im Stil seriöser Audio-Dokumentationen und Nachrichten.",
-            "🎙️ Tech-Podcaster (Dynamisch)": "Eine dynamische, energiegeladene und nahbare Stimme Ende 20, enthusiastisch, freundlich und sympathisch.",
-            "🧘 Meditations-Leiterin (Sanft & Beruhigend)": "Eine sehr sanfte, leise, melodische und einfühlsame weibliche Stimme mit beruhigendem Fluss und entspannter Atmung.",
-            "🕵️ Krimi- & Hörspiel-Sprecher": "Eine markante, tiefe, leicht rauchige und geheimnisvolle Stimme mit spürbarer Spannung und erzählerischer Dramatik.",
-            "🛍️ Moderner Werbesprecher": "Eine frische, sympathische, einladende und überzeugende Stimme für moderne Audio-Spots und Erklärvideos.",
+            "Eigene Beschreibung (Freitext)": "",
+            "Hörbuch-Erzähler (Warm & Sonor)": "Eine warme, sonore und beruhigende männliche Erzählerstimme Mitte 50 mit tiefer Resonanz, getragenem Sprechtempo und exzellenter deutscher Artikulation.",
+            "Seriöse Nachrichtensprecherin": "Eine sachliche, präzise und klar artikulierte weibliche Sprecherin Mitte 30 im Stil seriöser Audio-Dokumentationen und Nachrichten.",
+            "Tech-Podcaster (Dynamisch)": "Eine dynamische, energiegeladene und nahbare Stimme Ende 20, enthusiastisch, freundlich und sympathisch.",
+            "Meditations-Leiterin (Sanft & Beruhigend)": "Eine sehr sanfte, leise, melodische und einfühlsame weibliche Stimme mit beruhigendem Fluss und entspannter Atmung.",
+            "Krimi- & Hörspiel-Sprecher": "Eine markante, tiefe, leicht rauchige und geheimnisvolle Stimme mit spürbarer Spannung und erzählerischer Dramatik.",
+            "Moderner Werbesprecher": "Eine frische, sympathische, einladende und überzeugende Stimme für moderne Audio-Spots und Erklärvideos.",
         }
         self.vd_template_menu = ctk.CTkOptionMenu(
             row2,
@@ -939,7 +939,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         self.vd_btn_create = ctk.CTkButton(
             action_row,
-            text="✨ Stimme erschaffen & Probehören",
+            text="Stimme erschaffen & Probehören",
             command=self._create_prompted_voice,
             height=40,
             corner_radius=20,
@@ -982,7 +982,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         self.vd_btn_play = ctk.CTkButton(
             ctrl_row,
-            text="▶️ Hörprobe abspielen",
+            text="▶ Hörprobe abspielen",
             command=self._play_preview,
             state="disabled",
             height=34,
@@ -995,7 +995,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         self.vd_btn_stop = ctk.CTkButton(
             ctrl_row,
-            text="⏹️ Stopp",
+            text="■ Stopp",
             command=self._stop_preview,
             state="disabled",
             height=34,
@@ -1011,7 +1011,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         self.vd_btn_save = ctk.CTkButton(
             ctrl_row,
-            text="💾 Zu meinen Stimmen hinzufügen & Aktivieren",
+            text="Zu meinen Stimmen hinzufügen & Aktivieren",
             command=self._save_and_activate_created_voice,
             state="disabled",
             height=34,
@@ -1028,7 +1028,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         if prompt:
             self.vd_prompt_box.delete("0.0", "end")
             self.vd_prompt_box.insert("0.0", prompt)
-            suggested_name = choice.split("(")[0].replace("✨", "").replace("📖", "").replace("📰", "").replace("🎙️", "").replace("🧘", "").replace("🕵️", "").replace("🛍️", "").strip()
+            suggested_name = choice.split("(")[0].strip()
             self.vd_name_entry.delete(0, "end")
             self.vd_name_entry.insert(0, suggested_name)
             if "weiblich" in prompt.lower() or "nachrichtensprecherin" in prompt.lower() or "leiterin" in prompt.lower():
@@ -1061,7 +1061,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         elif "it-IT" in lang_raw:
             lang_code = "it-IT"
 
-        self.vd_btn_create.configure(state="disabled", text="⏳ Gemini trainiert Stimm-Profil...")
+        self.vd_btn_create.configure(state="disabled", text="Gemini trainiert Stimm-Profil...")
         self.vd_status_lbl.configure(text="Sende Anfrage an Google Cloud... Bitte kurz warten (ca. 20-30 Sek.).", text_color=M3_PRIMARY)
 
         def run_create():
@@ -1080,8 +1080,8 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         threading.Thread(target=run_create, daemon=True).start()
 
     def _on_prompted_voice_success(self, res: dict, name: str, prompt: str, gender: str, lang_code: str):
-        self.vd_btn_create.configure(state="normal", text="✨ Stimme erschaffen & Probehören")
-        self.vd_status_lbl.configure(text="✅ Stimme erfolgreich erschaffen!", text_color="#10B981")
+        self.vd_btn_create.configure(state="normal", text="Stimme erschaffen & Probehören")
+        self.vd_status_lbl.configure(text="Stimme erfolgreich erschaffen!", text_color="#10B981")
 
         voice_id = res.get("id", f"voice_{int(time.time())}")
         self.last_created_voice = {
@@ -1112,12 +1112,12 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         self.vd_btn_save.configure(state="normal")
         self.vd_result_info_lbl.configure(
-            text=f"🎉 Bereit: '{name}' | ID: {voice_id} | {lang_code} ({gender})",
+            text=f"Bereit: '{name}' | ID: {voice_id} | {lang_code} ({gender})",
             text_color=COLOR_PRIMARY_TEXT
         )
 
     def _on_prompted_voice_error(self, err_msg: str):
-        self.vd_btn_create.configure(state="normal", text="✨ Stimme erschaffen & Probehören")
+        self.vd_btn_create.configure(state="normal", text="Stimme erschaffen & Probehören")
         self.vd_status_lbl.configure(text="Fehler bei der Generierung.", text_color=M3_ERROR)
         messagebox.showerror("Fehler beim Erschaffen der Stimme", f"Die Stimme konnte nicht erstellt werden:\n\n{err_msg}")
 
@@ -1164,7 +1164,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             info_card,
-            text="ℹ️ Voice Replication klont die biometrischen Merkmale einer realen Person anhand von Referenz- und Verifizierungsaufnahmen.\n\n⚠️ Regionaler Hinweis (EWR/EU): Google schränkt das Hochladen biometrischer Stimmdateien im europäischen Wirtschaftsraum derzeit ein (API blockiert mit 'Location not supported'). Für Projekte mit Standort Deutschland/EU nutzen Sie bitte den Reiter 'Voice Design'!",
+            text="Voice Replication klont die biometrischen Merkmale einer realen Person anhand von Referenz- und Verifizierungsaufnahmen.\n\nRegionaler Hinweis (EWR/EU): Google schränkt das Hochladen biometrischer Stimmdateien im europäischen Wirtschaftsraum derzeit ein (API blockiert mit 'Location not supported'). Für Projekte mit Standort Deutschland/EU nutzen Sie bitte den Reiter 'Voice Design'!",
             wraplength=660,
             justify="left",
             font=ctk.CTkFont(family=FONT_FAMILY, size=11),
@@ -1198,7 +1198,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             ref_btn_row,
-            text="📁 Referenz-Audio auswählen...",
+            text="Referenz-Audio auswählen...",
             command=self._pick_ref_audio,
             height=32,
             corner_radius=16,
@@ -1236,7 +1236,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             consent_btn_row,
-            text="📁 Consent-Audio auswählen...",
+            text="Consent-Audio auswählen...",
             command=self._pick_consent_audio,
             height=32,
             corner_radius=16,
@@ -1259,7 +1259,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         self.vr_btn_clone = ctk.CTkButton(
             vr_action_row,
-            text="🧬 Stimme jetzt klonen",
+            text="Stimme jetzt klonen",
             command=self._clone_voice,
             height=40,
             corner_radius=20,
@@ -1315,7 +1315,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
             messagebox.showwarning("Einverständnis fehlt", "Bitte wähle die Consent-Audiodatei aus.")
             return
 
-        self.vr_btn_clone.configure(state="disabled", text="⏳ Sende Audiodaten an Google...")
+        self.vr_btn_clone.configure(state="disabled", text="Sende Audiodaten an Google...")
         self.vr_status_lbl.configure(text="Google verifiziert Sprecher-Biometrie und Consent...", text_color=M3_PRIMARY)
 
         def run_clone():
@@ -1338,8 +1338,8 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         threading.Thread(target=run_clone, daemon=True).start()
 
     def _on_clone_success(self, res: dict, name: str):
-        self.vr_btn_clone.configure(state="normal", text="🧬 Stimme jetzt klonen")
-        self.vr_status_lbl.configure(text="✅ Stimme erfolgreich geklont!", text_color="#10B981")
+        self.vr_btn_clone.configure(state="normal", text="Stimme jetzt klonen")
+        self.vr_status_lbl.configure(text="Stimme erfolgreich geklont!", text_color="#10B981")
 
         voice_id = res.get("id", f"voice_{int(time.time())}")
         voice_data = {
@@ -1363,7 +1363,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         self._on_close()
 
     def _on_clone_error(self, err_msg: str):
-        self.vr_btn_clone.configure(state="normal", text="🧬 Stimme jetzt klonen")
+        self.vr_btn_clone.configure(state="normal", text="Stimme jetzt klonen")
         self.vr_status_lbl.configure(text=f"Fehler: {err_msg[:180]}...", text_color=M3_ERROR)
         messagebox.showerror(
             "Fehler beim Klonen",
@@ -1378,7 +1378,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         import_card = ctk.CTkFrame(self.tab_manage, corner_radius=10, fg_color=M3_SURFACE, border_width=1, border_color=M3_OUTLINE_VARIANT)
         import_card.pack(fill="x", padx=12, pady=(8, 10))
 
-        ctk.CTkLabel(import_card, text="🔑 Vorhandene Voice-ID hinzufügen (z. B. aus Google AI Studio):", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(8, 6))
+        ctk.CTkLabel(import_card, text="Vorhandene Voice-ID hinzufügen (z. B. aus Google AI Studio):", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(8, 6))
 
         row = ctk.CTkFrame(import_card, fg_color="transparent")
         row.pack(fill="x", padx=12, pady=(0, 8))
@@ -1408,7 +1408,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             row,
-            text="➕ Hinzufügen",
+            text="+ Hinzufügen",
             command=self._add_manual_voice,
             height=34,
             corner_radius=8,
@@ -1423,7 +1423,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
         self.sync_btn = ctk.CTkButton(
             sync_row,
-            text="🔄 Aus Google Cloud synchronisieren",
+            text="Aus Google Cloud synchronisieren",
             command=self._sync_cloud_voices,
             height=32,
             corner_radius=16,
@@ -1507,12 +1507,12 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         threading.Thread(target=run_sync, daemon=True).start()
 
     def _on_sync_done(self, count: int):
-        self.sync_btn.configure(state="normal", text="🔄 Aus Google Cloud synchronisieren")
+        self.sync_btn.configure(state="normal", text="Aus Google Cloud synchronisieren")
         self.sync_status_lbl.configure(text=f"✓ {count} Stimme(n) synchronisiert", text_color="#10B981")
         self._refresh_custom_voices_list()
 
     def _on_sync_error(self, err: str):
-        self.sync_btn.configure(state="normal", text="🔄 Aus Google Cloud synchronisieren")
+        self.sync_btn.configure(state="normal", text="Aus Google Cloud synchronisieren")
         self.sync_status_lbl.configure(text=f"Fehler: {err[:60]}", text_color=M3_ERROR)
 
     def _refresh_custom_voices_list(self):
@@ -1548,7 +1548,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
             title_row.pack(fill="x")
 
             vtype = v.get("type", "prompted")
-            type_tag = "🎨 Voice Design" if vtype == "prompted" else ("🎙️ Stimmklon" if vtype == "replicated" else "🔑 Voice-ID")
+            type_tag = "Voice Design" if vtype == "prompted" else ("Stimmklon" if vtype == "replicated" else "Voice-ID")
 
             ctk.CTkLabel(
                 title_row,
@@ -1579,7 +1579,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
             vid = v.get("id")
             ctk.CTkButton(
                 btn_col,
-                text="⭐ Aktivieren",
+                text="Aktivieren",
                 command=lambda target_id=vid: self._activate_voice_by_id(target_id),
                 height=30,
                 corner_radius=15,
@@ -1590,12 +1590,12 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
             ctk.CTkButton(
                 btn_col,
-                text="🗑️",
+                text="Löschen",
                 command=lambda target_id=vid: self._delete_voice_by_id(target_id),
                 height=30,
-                width=34,
+                width=65,
                 corner_radius=15,
-                font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
                 fg_color="transparent",
                 hover_color=M3_ERROR_HOVER,
                 border_width=1,
@@ -1700,7 +1700,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         dlg_title = ctk.CTkLabel(
             title_col,
-            text="⚙️ Studio-Einstellungen",
+            text="Einstellungen",
             font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
@@ -1733,10 +1733,10 @@ class SettingsDialog(ctk.CTkToplevel):
         nav_bar.pack(fill="x", padx=20, pady=(0, 12))
 
         tabs_info = [
-            ("voice", "🗣️ Stimme & Sprache"),
-            ("style", "🎭 Regie & Ton"),
-            ("format", "🎛️ Audio-Format & Web"),
-            ("model", "🤖 KI-Engine & API")
+            ("voice", "Stimme & Sprache"),
+            ("style", "Regie & Ton"),
+            ("format", "Audio-Format & Web"),
+            ("model", "KI-Engine & API")
         ]
 
         for tab_id, label in tabs_info:
@@ -1783,7 +1783,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         save_btn = ctk.CTkButton(
             footer,
-            text="💾 Einstellungen übernehmen",
+            text="Einstellungen übernehmen",
             command=self._save_and_apply,
             height=38,
             corner_radius=19,
@@ -1820,14 +1820,14 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             left,
-            text="📁 Stimmen-Kategorie filtern:",
+            text="Stimmen-Kategorie filtern:",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(anchor="w", pady=(0, 4))
 
         self.voice_cat_menu = ctk.CTkOptionMenu(
             left,
-            values=["Alle Stimmen", "🎙️ Eigene / Geklonte Stimmen", "⭐ Favoriten & Allrounder", "🇩🇪 Deutsche Stimmen & Rollen", "📖 Erzähler & Storytelling"],
+            values=["Alle Stimmen", "Favoriten & Allrounder", "Deutsche Stimmen & Rollen", "Erzähler & Storytelling", "Eigene & Geklonte Stimmen"],
             variable=self.voice_cat_var,
             command=self._on_category_changed,
             height=36,
@@ -1846,7 +1846,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             left,
-            text="🗣️ Aktive Sprecherstimme:",
+            text="Aktive Sprecherstimme:",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(anchor="w", pady=(0, 4))
@@ -1921,7 +1921,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             right,
-            text="🌐 Sprache der Vertonung:",
+            text="Sprache der Vertonung:",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(anchor="w", pady=(0, 4))
@@ -1964,7 +1964,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             vs_card,
-            text="🎨 Gemini 3.8 Voice Studio",
+            text="Gemini 3.8 Voice Studio",
             font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
             text_color=M3_ON_SECONDARY_CONTAINER
         ).pack(anchor="w", padx=14, pady=(12, 4))
@@ -1980,7 +1980,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         vs_btn = ctk.CTkButton(
             vs_card,
-            text="✨ Voice Studio & Stimmklon öffnen...",
+            text="Voice Studio & Stimmklon öffnen...",
             command=self._open_voice_studio,
             height=34,
             corner_radius=12,
@@ -2002,7 +2002,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             head_row,
-            text="⚡ Schnell-Vorlagen (Presets mit 1 Klick anwenden):",
+            text="Schnell-Vorlagen (Presets mit 1 Klick anwenden):",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(side="left")
@@ -2026,11 +2026,11 @@ class SettingsDialog(ctk.CTkToplevel):
         presets_bar.pack(fill="x", pady=(0, 10))
 
         quick_presets = [
-            ("💼 Sachlich & Seriös", "Sprich in einem ruhigen, sachlichen und hochprofessionellen Tonfall wie ein erfahrener Nachrichtensprecher. Achte auf präzise Artikulation und deutliche Satzakzente."),
-            ("🔥 Begeistert & Dynamisch", "Sprich voller Energie, enthusiastisch und ansteckend wie bei einer spannenden Produktpräsentation."),
-            ("🌿 Doku-Erzähler", "Sprich mit tiefer, getragener und faszinierender Stimme wie der Sprecher einer anspruchsvollen Naturdokumentation."),
-            ("🎙️ Podcast Host", "Sprich entspannt, natürlich, nahbar und im Plauderton wie ein erfahrener Podcaster."),
-            ("🌙 Sanft & Beruhigend", "Sprich mit leiser, warmer und beruhigender Stimme, ideal für Meditation oder Einschlafgeschichten.")
+            ("Sachlich & Seriös", "Sprich in einem ruhigen, sachlichen und hochprofessionellen Tonfall wie ein erfahrener Nachrichtensprecher. Achte auf präzise Artikulation und deutliche Satzakzente."),
+            ("Begeistert & Dynamisch", "Sprich voller Energie, enthusiastisch und ansteckend wie bei einer spannenden Produktpräsentation."),
+            ("Doku-Erzähler", "Sprich mit tiefer, getragener und faszinierender Stimme wie der Sprecher einer anspruchsvollen Naturdokumentation."),
+            ("Podcast Host", "Sprich entspannt, natürlich, nahbar und im Plauderton wie ein erfahrener Podcaster."),
+            ("Sanft & Beruhigend", "Sprich mit leiser, warmer und beruhigender Stimme, ideal für Meditation oder Einschlafgeschichten.")
         ]
 
         for p_name, p_text in quick_presets:
@@ -2055,14 +2055,14 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             prompt_head,
-            text="📝 Detaillierte Regieanweisung (System-Prompt):",
+            text="Detaillierte Regieanweisung (System-Prompt):",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(side="left")
 
         save_p_btn = ctk.CTkButton(
             prompt_head,
-            text="💾 Als neue Vorlage speichern...",
+            text="Als neue Vorlage speichern...",
             command=self._save_style_preset,
             height=26,
             corner_radius=13,
@@ -2122,7 +2122,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         del_preset_btn = ctk.CTkButton(
             custom_row,
-            text="🗑️ Löschen",
+            text="Löschen",
             command=self._delete_style_preset,
             width=80,
             height=32,
@@ -2148,7 +2148,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             hint_box,
-            text="💡 Tipp zur Sprachkonsistenz: Halte Regieanweisungen vorzugsweise in derselben Sprache wie den Haupttext. Gemini 3.8 nutzt diesen Text als Regieanweisung – er wird nicht als gesprochener Text ausgegeben.",
+            text="Tipp zur Sprachkonsistenz: Halte Regieanweisungen vorzugsweise in derselben Sprache wie den Haupttext. Gemini 3.8 nutzt diesen Text als Regieanweisung – er wird nicht als gesprochener Text ausgegeben.",
             font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             text_color=("#92400E", "#FCD34D"),
             wraplength=680,
@@ -2176,28 +2176,28 @@ class SettingsDialog(ctk.CTkToplevel):
         # Profile 1: Web AAC 64k
         c1 = ctk.CTkFrame(cards_grid, fg_color=M3_SURFACE_CONTAINER, corner_radius=14, border_width=1.5, border_color=M3_OUTLINE_VARIANT)
         c1.grid(row=0, column=0, padx=6, pady=6, sticky="nsew")
-        ctk.CTkLabel(c1, text="🌐 Web-Optimiert (AAC 64k)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
+        ctk.CTkLabel(c1, text="Web-Optimiert (AAC 64k)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
         ctk.CTkLabel(c1, text="Mono, 64 kbps, MP4 FastStart. Extrem kompakt, sofortiges Streaming.", font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT, wraplength=300, justify="left").pack(anchor="w", padx=12, pady=(0, 8))
         ctk.CTkButton(c1, text="Anwenden", command=lambda: self._apply_format_preset("aac", "64 kbit/s", "Mono (1)", True, "48.000 Hz", "Web AAC 64k"), height=26, corner_radius=13, font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), fg_color=M3_PRIMARY, hover_color=M3_PRIMARY_HOVER, text_color=("#FFFFFF", "#00201C")).pack(anchor="e", padx=12, pady=(0, 10))
 
         # Profile 2: Podcast HQ M4A 128k
         c2 = ctk.CTkFrame(cards_grid, fg_color=M3_SURFACE_CONTAINER, corner_radius=14, border_width=1.5, border_color=M3_OUTLINE_VARIANT)
         c2.grid(row=0, column=1, padx=6, pady=6, sticky="nsew")
-        ctk.CTkLabel(c2, text="🎙️ Podcast HQ (M4A 128k)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
+        ctk.CTkLabel(c2, text="Podcast HQ (M4A 128k)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
         ctk.CTkLabel(c2, text="Stereo, 128 kbps, AAC-LC. Kristallklare Sprachqualität für Audiotouren.", font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT, wraplength=300, justify="left").pack(anchor="w", padx=12, pady=(0, 8))
         ctk.CTkButton(c2, text="Anwenden", command=lambda: self._apply_format_preset("aac", "128 kbit/s", "Stereo (2)", True, "48.000 Hz", "Podcast HQ 128k"), height=26, corner_radius=13, font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), fg_color=M3_PRIMARY, hover_color=M3_PRIMARY_HOVER, text_color=("#FFFFFF", "#00201C")).pack(anchor="e", padx=12, pady=(0, 10))
 
         # Profile 3: Universell MP3 96k
         c3 = ctk.CTkFrame(cards_grid, fg_color=M3_SURFACE_CONTAINER, corner_radius=14, border_width=1.5, border_color=M3_OUTLINE_VARIANT)
         c3.grid(row=1, column=0, padx=6, pady=6, sticky="nsew")
-        ctk.CTkLabel(c3, text="📻 Universell (MP3 96k)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
+        ctk.CTkLabel(c3, text="Universell (MP3 96k)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
         ctk.CTkLabel(c3, text="Mono, 96 kbps MP3. Höchste Kompatibilität auf ausnahmslos jedem Endgerät.", font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT, wraplength=300, justify="left").pack(anchor="w", padx=12, pady=(0, 8))
         ctk.CTkButton(c3, text="Anwenden", command=lambda: self._apply_format_preset("libmp3lame", "96 kbit/s", "Mono (1)", False, "44.100 Hz", "MP3 96k"), height=26, corner_radius=13, font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), fg_color=M3_PRIMARY, hover_color=M3_PRIMARY_HOVER, text_color=("#FFFFFF", "#00201C")).pack(anchor="e", padx=12, pady=(0, 10))
 
         # Profile 4: Studio Master WAV 48kHz
         c4 = ctk.CTkFrame(cards_grid, fg_color=M3_SURFACE_CONTAINER, corner_radius=14, border_width=1.5, border_color=M3_OUTLINE_VARIANT)
         c4.grid(row=1, column=1, padx=6, pady=6, sticky="nsew")
-        ctk.CTkLabel(c4, text="🎼 Studio Master (WAV 48kHz)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
+        ctk.CTkLabel(c4, text="Studio Master (WAV 48kHz)", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=12, pady=(10, 2))
         ctk.CTkLabel(c4, text="PCM 16-Bit unkomprimiert, 48 kHz. Reines Studio-Rohmaterial ohne Verluste.", font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT, wraplength=300, justify="left").pack(anchor="w", padx=12, pady=(0, 8))
         ctk.CTkButton(c4, text="Anwenden", command=lambda: self._apply_format_preset("pcm_s16le", "128 kbit/s", "Stereo (2)", False, "48.000 Hz", "WAV 48kHz"), height=26, corner_radius=13, font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), fg_color=M3_PRIMARY, hover_color=M3_PRIMARY_HOVER, text_color=("#FFFFFF", "#00201C")).pack(anchor="e", padx=12, pady=(0, 10))
 
@@ -2247,7 +2247,7 @@ class SettingsDialog(ctk.CTkToplevel):
         # Model selection
         ctk.CTkLabel(
             f,
-            text="🤖 Aktives Gemini Modell:",
+            text="Aktives Gemini Modell:",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(anchor="w", pady=(0, 4))
@@ -2284,14 +2284,14 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             key_head,
-            text="🔑 Google AI Studio API-Schlüssel:",
+            text="Google AI Studio API-Schlüssel:",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(side="left")
 
         self.key_status_indicator = ctk.CTkLabel(
             key_head,
-            text="🟢 Schlüssel aktiv" if get_api_key() else "⚠️ Kein Schlüssel hinterlegt",
+            text="Schlüssel aktiv" if get_api_key() else "Kein Schlüssel hinterlegt",
             font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             text_color="#10B981" if get_api_key() else M3_ERROR
         )
@@ -2318,12 +2318,12 @@ class SettingsDialog(ctk.CTkToplevel):
 
         self.key_show_btn = ctk.CTkButton(
             key_row,
-            text="👁️",
+            text="Zeigen",
             command=self._toggle_key_visibility,
-            width=38,
+            width=70,
             height=36,
             corner_radius=12,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color=M3_SURFACE_CONTAINER,
             hover_color=M3_SURFACE_CONTAINER_HIGH,
             text_color=COLOR_PRIMARY_TEXT
@@ -2367,7 +2367,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             storage_content,
-            text="📁 Standard-Speicherort für Audio-Dateien",
+            text="Standard-Speicherort für Audio-Dateien",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(anchor="w", pady=(0, 2))
@@ -2515,7 +2515,7 @@ class SettingsDialog(ctk.CTkToplevel):
         for v in get_all_voices():
             if v["id"] == voice_id:
                 desc = v.get("desc", "")
-                is_custom = (v.get("category") == "🎙️ Eigene / Geklonte Stimmen") or v.get("type") == "prompted"
+                is_custom = (v.get("category") == "Eigene & Geklonte Stimmen") or v.get("type") == "prompted"
                 display_name = v.get("name", v["id"])
                 self.voice_bio_title.configure(text=display_name)
                 self.voice_desc_lbl.configure(text=desc)
@@ -2563,33 +2563,31 @@ class SettingsDialog(ctk.CTkToplevel):
         names = ["-- Gespeicherte Vorlagen --"]
         if custom_styles:
             for k in sorted(custom_styles.keys()):
-                names.append(f"⭐ {k}")
+                names.append(k)
         self.custom_preset_menu.configure(values=names)
-        if select_name and f"⭐ {select_name}" in names:
-            self.custom_style_var.set(f"⭐ {select_name}")
+        if select_name and select_name in names:
+            self.custom_style_var.set(select_name)
         else:
             self.custom_style_var.set(names[0])
 
     def _on_custom_style_selected(self, choice: str):
-        if choice.startswith("⭐ "):
-            raw = choice[2:]
-            styles = load_custom_styles()
-            if raw in styles:
-                self.prompt_box.delete("0.0", "end")
-                self.prompt_box.insert("0.0", styles[raw])
-                self.active_style_preset = raw
+        styles = load_custom_styles()
+        if choice in styles:
+            self.prompt_box.delete("0.0", "end")
+            self.prompt_box.insert("0.0", styles[choice])
+            self.active_style_preset = choice
 
     def _delete_style_preset(self):
         choice = self.custom_style_var.get()
-        if not choice.startswith("⭐ "):
-            messagebox.showinfo("Hinweis", "Bitte wähle zuerst eine gespeicherte Vorlage (mit ⭐) zum Löschen aus.")
+        styles = load_custom_styles()
+        if choice not in styles:
+            messagebox.showinfo("Hinweis", "Bitte wähle zuerst eine gespeicherte Vorlage zum Löschen aus.")
             return
-        raw = choice[2:]
-        if messagebox.askyesno("Vorlage löschen", f"Möchtest du die Vorlage '{raw}' wirklich entfernen?"):
-            delete_custom_style(raw)
+        if messagebox.askyesno("Vorlage löschen", f"Möchtest du die Vorlage '{choice}' wirklich entfernen?"):
+            delete_custom_style(choice)
             self._refresh_custom_presets_list()
             self._clear_style()
-            messagebox.showinfo("Gelöscht", f"Die Vorlage '{raw}' wurde gelöscht.")
+            messagebox.showinfo("Gelöscht", f"Die Vorlage '{choice}' wurde gelöscht.")
 
     def _apply_format_preset(self, codec: str, bitrate: str, channels: str, faststart: bool, rate: str, label: str):
         self.codec_var.set(codec)
@@ -2601,10 +2599,10 @@ class SettingsDialog(ctk.CTkToplevel):
     def _toggle_key_visibility(self):
         if self.key_entry.cget("show") == "*":
             self.key_entry.configure(show="")
-            self.key_show_btn.configure(text="🔒")
+            self.key_show_btn.configure(text="Verbergen")
         else:
             self.key_entry.configure(show="*")
-            self.key_show_btn.configure(text="👁️")
+            self.key_show_btn.configure(text="Zeigen")
 
     def _test_api_key(self):
         k = self.key_entry.get().strip()
@@ -2632,17 +2630,17 @@ class SettingsDialog(ctk.CTkToplevel):
     def _on_key_test_result(self, success: bool, msg: str):
         self.test_conn_btn.configure(state="normal", text="Verbindung testen")
         if success:
-            self.key_status_indicator.configure(text="🟢 Schlüssel verifiziert", text_color="#10B981")
+            self.key_status_indicator.configure(text="Schlüssel verifiziert", text_color="#10B981")
             messagebox.showinfo("Verbindung erfolgreich", "Der Google AI Studio API-Key ist gültig und funktionsfähig!")
         else:
-            self.key_status_indicator.configure(text="❌ Verbindungsfehler", text_color=M3_ERROR)
+            self.key_status_indicator.configure(text="Verbindungsfehler", text_color=M3_ERROR)
             messagebox.showerror("Verbindung fehlgeschlagen", f"Test nicht erfolgreich:\n{msg}")
 
     def _open_voice_studio(self):
         def on_custom_voice_chosen(voice_id: str):
             self.parent_app._refresh_voice_options(select_voice_id=voice_id)
-            self.voice_cat_var.set("🎙️ Eigene / Geklonte Stimmen")
-            self._on_category_changed("🎙️ Eigene / Geklonte Stimmen")
+            self.voice_cat_var.set("Eigene & Geklonte Stimmen")
+            self._on_category_changed("Eigene & Geklonte Stimmen")
 
         VoiceStudioDialog(
             self,
@@ -2782,13 +2780,13 @@ class GeminiTTSApp(ctk.CTk):
         self.batch_output_dir = OUTPUT_DIR / "batch_exports"
 
         # Voice & Language State
-        self.voice_categories = ["Alle Stimmen", "🎙️ Eigene / Geklonte Stimmen", "⭐ Favoriten & Allrounder", "🇩🇪 Deutsche Stimmen & Rollen", "📖 Erzähler & Storytelling"]
+        self.voice_categories = ["Alle Stimmen", "Eigene & Geklonte Stimmen", "Favoriten & Allrounder", "Deutsche Stimmen & Rollen", "Erzähler & Storytelling"]
         self.voice_category_var = ctk.StringVar(value="Alle Stimmen")
         all_initial_voices = get_all_voices()
         voice_options = [format_voice_display_label(v) for v in all_initial_voices]
         self.voice_var = ctk.StringVar(value=voice_options[0] if voice_options else "Erinome (Weiblich)")
         lang_options = [l["name"] for l in SUPPORTED_LANGUAGES]
-        self.lang_var = ctk.StringVar(value=lang_options[0] if lang_options else "🇩🇪 Deutsch (Standard)")
+        self.lang_var = ctk.StringVar(value=lang_options[0] if lang_options else "Deutsch")
 
         # Model State
         model_options = [m["name"] for m in AVAILABLE_MODELS]
@@ -2832,9 +2830,23 @@ class GeminiTTSApp(ctk.CTk):
         title_box = ctk.CTkFrame(self.header_frame, fg_color="transparent")
         title_box.grid(row=0, column=0, padx=20, pady=14, sticky="w")
 
+        # App Icon + Title
+        logo_img = None
+        if ICON_PNG_PATH.exists():
+            try:
+                from PIL import Image
+                raw_logo = Image.open(str(ICON_PNG_PATH))
+                logo_img = ctk.CTkImage(light_image=raw_logo, dark_image=raw_logo, size=(26, 26))
+            except Exception:
+                pass
+
+        if logo_img:
+            logo_lbl = ctk.CTkLabel(title_box, image=logo_img, text="")
+            logo_lbl.pack(side="left", padx=(0, 10))
+
         title_label = ctk.CTkLabel(
             title_box,
-            text="🎙️ Gemini TTS Studio",
+            text="Gemini TTS Studio",
             font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
@@ -2907,7 +2919,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.btn_settings = ctk.CTkButton(
             actions_frame,
-            text="⚙️ Einstellungen",
+            text="Einstellungen",
             command=lambda: self._open_settings_dialog("voice"),
             height=36,
             corner_radius=18,
@@ -2944,7 +2956,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.mode_segmented = MaterialSegmentedControl(
             mode_frame,
-            values=["✍️ Einzeltext-Modus", "📂 Dokumenten- & Batch-Import"],
+            values=["Einzeltext-Modus", "Dokumenten- & Batch-Import"],
             command=self._on_mode_switched,
             height=40
         )
@@ -2969,7 +2981,7 @@ class GeminiTTSApp(ctk.CTk):
 
         text_title = ctk.CTkLabel(
             text_header_frame,
-            text="📝 Haupttext zur Sprachausgabe (Skriptfeld)",
+            text="Haupttext zur Sprachausgabe (Skriptfeld)",
             font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
@@ -2978,7 +2990,7 @@ class GeminiTTSApp(ctk.CTk):
         # Translation Button (M3 Tonal Pill)
         self.translate_single_btn = ctk.CTkButton(
             text_header_frame,
-            text="🌐 In Zielsprache übersetzen",
+            text="In Zielsprache übersetzen",
             command=self._translate_single_text,
             height=34,
             corner_radius=17,
@@ -2993,7 +3005,7 @@ class GeminiTTSApp(ctk.CTk):
         # Quick Document Loader Button (M3 Outlined Pill)
         load_doc_btn = ctk.CTkButton(
             text_header_frame,
-            text="📂 Dokument laden",
+            text="Dokument laden",
             command=self._load_document_to_single_text,
             height=34,
             corner_radius=17,
@@ -3020,20 +3032,20 @@ class GeminiTTSApp(ctk.CTk):
 
         ctk.CTkLabel(
             quick_tag_bar,
-            text="🎭 Regie-Cues:",
+            text="Regie-Cues:",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=M3_PRIMARY
         ).pack(side="left", padx=(0, 6))
 
         quick_tags = [
-            ("😂 Lachen", "[lachen]"),
-            ("😮‍💨 Seufzen", "[seufzen]"),
-            ("😮 Einatmen", "[einatmen]"),
-            ("🗣️ Räuspern", "[räuspern]"),
-            ("🤝 mhm", "[mhm]"),
-            ("🤫 Flüstern", "[flüstern]"),
-            ("⏸️ Pause", "[Pause]"),
-            ("✨ Begeistert", "[begeistert]"),
+            ("Lachen", "[lachen]"),
+            ("Seufzen", "[seufzen]"),
+            ("Einatmen", "[einatmen]"),
+            ("Räuspern", "[räuspern]"),
+            ("mhm", "[mhm]"),
+            ("Flüstern", "[flüstern]"),
+            ("Pause", "[Pause]"),
+            ("Begeistert", "[begeistert]"),
         ]
 
         for display, tag_code in quick_tags:
@@ -3054,7 +3066,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.more_tags_menu = ctk.CTkOptionMenu(
             quick_tag_bar,
-            values=["+ Mehr Tags ▾", "🤔 [nachdenklich]", "😢 [traurig]", "🐢 [langsam]", "🐇 [schnell]"],
+            values=["+ Mehr Tags ▾", "[nachdenklich]", "[traurig]", "[langsam]", "[schnell]"],
             command=self._on_more_tag_selected,
             height=26,
             width=120,
@@ -3115,7 +3127,7 @@ class GeminiTTSApp(ctk.CTk):
         # Right: Prominent Generate CTA Button (Merged right into the card!)
         self.generate_btn = ctk.CTkButton(
             script_footer,
-            text="⚡ Audio generieren",
+            text="▶ Audio generieren",
             command=self._start_generation_thread,
             width=180,
             height=38,
@@ -3154,7 +3166,7 @@ class GeminiTTSApp(ctk.CTk):
 
         ctk.CTkLabel(
             batch_header,
-            text="📂 Dokumenten- & Stapelverarbeitung (Batch)",
+            text="Dokumenten- & Stapelverarbeitung (Batch)",
             font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(side="left")
@@ -3165,7 +3177,7 @@ class GeminiTTSApp(ctk.CTk):
 
         add_files_btn = ctk.CTkButton(
             toolbar_frame,
-            text="➕ Dateien hinzufügen...",
+            text="+ Dateien hinzufügen...",
             command=self._batch_add_files_dialog,
             height=34,
             corner_radius=17,
@@ -3179,7 +3191,7 @@ class GeminiTTSApp(ctk.CTk):
 
         add_folder_btn = ctk.CTkButton(
             toolbar_frame,
-            text="📁 Ordner importieren...",
+            text="Ordner importieren...",
             command=self._batch_add_folder_dialog,
             height=34,
             corner_radius=17,
@@ -3194,7 +3206,7 @@ class GeminiTTSApp(ctk.CTk):
 
         clear_btn = ctk.CTkButton(
             toolbar_frame,
-            text="🗑️ Liste leeren",
+            text="Liste leeren",
             command=self._batch_clear_queue,
             height=34,
             corner_radius=17,
@@ -3239,14 +3251,14 @@ class GeminiTTSApp(ctk.CTk):
 
         ctk.CTkLabel(
             lang_header_row,
-            text="🌐 Mehrsprachiger Export (Zielsprachen):",
+            text="Mehrsprachiger Export (Zielsprachen):",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         ).pack(side="left", padx=(0, 8))
 
         self.batch_lang_summary_lbl = ctk.CTkLabel(
             lang_header_row,
-            text="1 Sprache: 🇩🇪 Deutsch",
+            text="1 Sprache: Deutsch",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=M3_PRIMARY
         )
@@ -3289,9 +3301,9 @@ class GeminiTTSApp(ctk.CTk):
         ).pack(side="left", padx=(0, 8))
 
         for q_label, q_type in [
-            ("🇩🇪 Nur Deutsch", "de_only"),
-            ("🌍 Top 5 (DE, EN, ES, FR, IT)", "top5"),
-            ("🌐 Alle 31 Sprachen", "all"),
+            ("Nur Deutsch", "de_only"),
+            ("Top 5 (DE, EN, ES, FR, IT)", "top5"),
+            ("Alle 31 Sprachen", "all"),
             ("✕ Alle abwählen", "none")
         ]:
             q_btn = ctk.CTkButton(
@@ -3372,9 +3384,9 @@ class GeminiTTSApp(ctk.CTk):
 
         open_outdir_btn = ctk.CTkButton(
             outdir_row,
-            text="📂 Ordner öffnen",
+            text="Zielordner öffnen",
             command=self._batch_open_outdir,
-            width=120,
+            width=130,
             height=30,
             corner_radius=15,
             font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
@@ -3398,7 +3410,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.queue_empty_lbl = ctk.CTkLabel(
             self.queue_frame,
-            text="Keine Dateien in der Warteschlange. Klicke auf '➕ Dateien hinzufügen...', um Dokumente (.txt, .pdf, .docx, .md, .srt) zu laden.",
+            text="Keine Dateien in der Warteschlange. Klicke auf '+ Dateien hinzufügen...', um Dokumente (.txt, .pdf, .docx, .md, .srt) zu laden.",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             text_color=COLOR_MUTED_TEXT
         )
@@ -3413,7 +3425,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.batch_start_btn = ctk.CTkButton(
             batch_action_btn_row,
-            text="⚡ Alle Dateien in Warteschlange generieren",
+            text="▶ Alle Dateien in Warteschlange generieren",
             command=self._batch_start_processing,
             height=44,
             corner_radius=22,
@@ -3426,7 +3438,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.batch_cancel_btn = ctk.CTkButton(
             batch_action_btn_row,
-            text="⏹ Abbrechen",
+            text="■ Abbrechen",
             command=self._batch_cancel,
             height=44,
             width=120,
@@ -3479,7 +3491,7 @@ class GeminiTTSApp(ctk.CTk):
 
         player_header = ctk.CTkLabel(
             player_header_row,
-            text="🔊 Integrierter Audio-Player & Export",
+            text="Integrierter Audio-Player & Export",
             font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
@@ -3576,8 +3588,8 @@ class GeminiTTSApp(ctk.CTk):
         vol_box.grid(row=0, column=4, padx=(0, 10))
         ctk.CTkLabel(
             vol_box,
-            text="🔊",
-            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text="Lautstärke:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             text_color=COLOR_MUTED_TEXT
         ).pack(side="left", padx=(0, 4))
         self.volume_slider = ctk.CTkSlider(
@@ -3596,7 +3608,7 @@ class GeminiTTSApp(ctk.CTk):
         # Export Button (Seamlessly integrated into controls row!)
         self.export_btn = ctk.CTkButton(
             controls_frame,
-            text="💾 Speichern...",
+            text="Exportieren...",
             command=self._export_audio,
             height=34,
             corner_radius=17,
@@ -3611,7 +3623,7 @@ class GeminiTTSApp(ctk.CTk):
         self.export_btn.grid(row=0, column=5, padx=(4, 0))
 
         # Enforce initial mode layout (Single text mode active, batch hidden)
-        self._on_mode_switched("✍️ Einzeltext-Modus")
+        self._on_mode_switched("Einzeltext-Modus")
 
     # ------------------ Settings Dialog & Header Status Pills ------------------
 
@@ -3758,10 +3770,10 @@ class GeminiTTSApp(ctk.CTk):
                 break
 
         if target_lang_id == "auto":
-            messagebox.showinfo("Sprachauswahl", "Bitte wähle im Bereich '🌐 Sprache' eine konkrete Zielsprache aus (z. B. Englisch, Französisch, Spanisch etc.).")
+            messagebox.showinfo("Sprachauswahl", "Bitte wähle im Bereich 'Sprache' eine konkrete Zielsprache aus (z. B. Englisch, Französisch, Spanisch etc.).")
             return
 
-        self.translate_single_btn.configure(state="disabled", text="⏳ Übersetze...")
+        self.translate_single_btn.configure(state="disabled", text="Übersetze...")
         self.status_lbl.configure(text=f"Übersetze Text nach {selected_lang_name} (Gemini)...", text_color="#38BDF8")
 
         def run_trans():
@@ -3774,18 +3786,18 @@ class GeminiTTSApp(ctk.CTk):
         threading.Thread(target=run_trans, daemon=True).start()
 
     def _on_single_translation_done(self, translated_text: str, target_lang_name: str):
-        self.translate_single_btn.configure(state="normal", text="🌐 In Zielsprache übersetzen")
+        self.translate_single_btn.configure(state="normal", text="In Zielsprache übersetzen")
         self.text_input.delete("0.0", "end")
         self.text_input.insert("0.0", translated_text)
         self._update_counters()
         # Uncheck auto-translate so subsequent generation will not re-translate already translated text
         self.auto_translate_var.set(False)
-        self.status_lbl.configure(text=f"✅ Erfolgreich nach {target_lang_name} übersetzt!", text_color="#10B981")
+        self.status_lbl.configure(text=f"Erfolgreich nach {target_lang_name} übersetzt!", text_color="#10B981")
         messagebox.showinfo("Übersetzung fertig", f"Der Text wurde erfolgreich nach {target_lang_name} übersetzt!\nAlle Regieanweisungen und Audio-Tags blieben erhalten.")
 
     def _on_single_translation_error(self, err_msg: str):
-        self.translate_single_btn.configure(state="normal", text="🌐 In Zielsprache übersetzen")
-        self.status_lbl.configure(text=f"❌ Übersetzungsfehler: {err_msg}", text_color="#EF4444")
+        self.translate_single_btn.configure(state="normal", text="In Zielsprache übersetzen")
+        self.status_lbl.configure(text=f"Übersetzungsfehler: {err_msg}", text_color="#EF4444")
         messagebox.showerror("Übersetzungsfehler", f"Fehler bei der Übersetzung:\n{err_msg}")
 
     # ------------------ System-Prompt & Style Panel with Custom Preset Saving ------------------
@@ -3809,7 +3821,7 @@ class GeminiTTSApp(ctk.CTk):
         all_names = list(built_in_names)
         if custom_styles:
             for c_name in sorted(custom_styles.keys()):
-                all_names.append(f"⭐ {c_name}")
+                all_names.append(c_name)
 
         self.style_preset_menu.configure(values=all_names)
         if select_name and select_name in all_names:
@@ -3827,12 +3839,10 @@ class GeminiTTSApp(ctk.CTk):
                 return
 
         # Check user-saved custom styles
-        if choice.startswith("⭐ "):
-            raw_name = choice[2:]
-            custom_styles = load_custom_styles()
-            if raw_name in custom_styles:
-                self.style_input.delete("0.0", "end")
-                self.style_input.insert("0.0", custom_styles[raw_name])
+        custom_styles = load_custom_styles()
+        if choice in custom_styles:
+            self.style_input.delete("0.0", "end")
+            self.style_input.insert("0.0", custom_styles[choice])
 
     def _save_current_style_preset(self):
         """Saves current text in style_input as a custom reusable preset."""
@@ -3851,22 +3861,22 @@ class GeminiTTSApp(ctk.CTk):
         
         name = name.strip()
         save_custom_style(name, directive)
-        self._refresh_style_presets(select_name=f"⭐ {name}")
+        self._refresh_style_presets(select_name=name)
         messagebox.showinfo("Gespeichert", f"Die Vorlage '{name}' wurde erfolgreich gespeichert und zur Auswahl hinzugefügt!")
 
     def _delete_current_style_preset(self):
         """Deletes currently selected user preset."""
         current_choice = self.style_preset_var.get()
-        if not current_choice.startswith("⭐ "):
-            messagebox.showinfo("Hinweis", "Nur selbst gespeicherte Vorlagen (mit ⭐ gekennzeichnet) können gelöscht werden.")
+        custom_styles = load_custom_styles()
+        if current_choice not in custom_styles:
+            messagebox.showinfo("Hinweis", "Nur selbst gespeicherte Vorlagen können gelöscht werden.")
             return
 
-        raw_name = current_choice[2:]
-        if messagebox.askyesno("Vorlage löschen", f"Möchtest du die Vorlage '{raw_name}' wirklich löschen?"):
-            delete_custom_style(raw_name)
+        if messagebox.askyesno("Vorlage löschen", f"Möchtest du die Vorlage '{current_choice}' wirklich löschen?"):
+            delete_custom_style(current_choice)
             self._refresh_style_presets()
             self._clear_style()
-            messagebox.showinfo("Gelöscht", f"Die Vorlage '{raw_name}' wurde gelöscht.")
+            messagebox.showinfo("Gelöscht", f"Die Vorlage '{current_choice}' wurde gelöscht.")
 
     def _clear_style(self):
         self.style_preset_var.set(STYLE_SUGGESTIONS[0][0])
@@ -3978,7 +3988,7 @@ class GeminiTTSApp(ctk.CTk):
         if not self.batch_processor.items:
             self.queue_empty_lbl = ctk.CTkLabel(
                 self.queue_frame,
-                text="Keine Dateien in der Warteschlange. Klicke auf '➕ Dateien hinzufügen...', um Dokumente (.txt, .pdf, .docx, .md, .srt) zu laden.",
+                text="Keine Dateien in der Warteschlange. Klicke auf '+ Dateien hinzufügen...', um Dokumente (.txt, .pdf, .docx, .md, .srt) zu laden.",
                 font=ctk.CTkFont(family=FONT_FAMILY, size=12),
                 text_color=COLOR_MUTED_TEXT
             )
@@ -3997,7 +4007,7 @@ class GeminiTTSApp(ctk.CTk):
             item_row.grid_columnconfigure(1, weight=1)
 
             # Icon & Title
-            icon_lbl = ctk.CTkLabel(item_row, text="📄", font=ctk.CTkFont(size=14))
+            icon_lbl = ctk.CTkLabel(item_row, text="•", font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), text_color=M3_PRIMARY)
             icon_lbl.grid(row=0, column=0, padx=(10, 6), pady=6)
 
             title_txt = f"{item.title}  ({item.char_count:,} Zeichen | {item.word_count:,} Wörter)"
@@ -4138,14 +4148,14 @@ class GeminiTTSApp(ctk.CTk):
         )
 
     def _on_batch_finished_ui(self, items: List[BatchItem]):
-        self.batch_start_btn.configure(state="normal", text="⚡ Alle Dateien in Warteschlange generieren")
+        self.batch_start_btn.configure(state="normal", text="▶ Alle Dateien in Warteschlange generieren")
         self.batch_cancel_btn.configure(state="disabled")
         self.batch_progress_bar.set(1.0)
         self.after(1000, lambda: self.batch_progress_bar.pack_forget())
         
-        success_count = sum(1 for i in items if i.status == "Fertig ✅")
+        success_count = sum(1 for i in items if "Fertig" in i.status)
         self.batch_status_lbl.configure(
-            text=f"✅ Batch abgeschlossen! {success_count} von {len(items)} Dateien erfolgreich generiert.",
+            text=f"Batch abgeschlossen! {success_count} von {len(items)} Dateien erfolgreich generiert.",
             text_color="#10B981"
         )
         self._refresh_batch_queue_ui()
@@ -4164,20 +4174,20 @@ class GeminiTTSApp(ctk.CTk):
         if self.is_format_collapsed:
             self.format_body_frame.pack(fill="x", padx=0, pady=(0, 0))
             self.format_toggle_btn.configure(text="▴ Zuklappen")
-            self.format_title_lbl.configure(text="🎛️ Audioformat & Enkodierung")
+            self.format_title_lbl.configure(text="Audioformat & Enkodierung")
             self.is_format_collapsed = False
         else:
             self.format_body_frame.pack_forget()
-            preset_name = self.preset_var.get().split("(")[0].replace("🌐", "").replace("🎵", "").replace("🎧", "").replace("📻", "").replace("💿", "").strip()
-            self.format_title_lbl.configure(text=f"🎛️ Audioformat: {preset_name}")
+            preset_name = self.preset_var.get().split("(")[0].strip()
+            self.format_title_lbl.configure(text=f"Audioformat: {preset_name}")
             self.format_toggle_btn.configure(text="▾ Einstellungen anpassen")
             self.is_format_collapsed = True
 
     def _get_key_status_text(self) -> str:
         key = get_api_key()
         if key and len(key) > 6:
-            return f"🔑 Key: {key[:4]}...{key[-3:]}"
-        return "⚠️ API-Key fehlt"
+            return f"Key: {key[:4]}...{key[-3:]}"
+        return "API-Key fehlt"
 
     def _open_api_key_dialog(self):
         self._open_settings_dialog("model")
@@ -4212,7 +4222,7 @@ class GeminiTTSApp(ctk.CTk):
         latest_ver = update_info.get("latest_version", "")
         self.update_btn = ctk.CTkButton(
             self.header_frame,
-            text=f"✨ Update {latest_ver} verfügbar",
+            text=f"Update {latest_ver} verfügbar",
             command=lambda: self._open_update_dialog(update_info),
             height=36,
             corner_radius=18,
@@ -4412,8 +4422,8 @@ class GeminiTTSApp(ctk.CTk):
         if auto_translate and lang_id == "auto":
             messagebox.showwarning(
                 "Zielsprache wählen",
-                "Du hast die automatische Übersetzung aktiviert, aber als Sprache '🌐 Automatisch erkennen' gewählt.\n\n"
-                "Bitte wähle unter '🌐 Sprache' eine konkrete Zielsprache aus (z. B. Englisch, Französisch, Spanisch etc.)."
+                "Du hast die automatische Übersetzung aktiviert, aber als Sprache 'Automatisch erkennen' gewählt.\n\n"
+                "Bitte wähle unter 'Sprache' eine konkrete Zielsprache aus (z. B. Englisch, Französisch, Spanisch etc.)."
             )
             return
 
@@ -4424,7 +4434,7 @@ class GeminiTTSApp(ctk.CTk):
         settings = self._get_current_encoding_settings()
 
         self.is_generating = True
-        self.generate_btn.configure(state="disabled", text="⏳ Generiere Audio...")
+        self.generate_btn.configure(state="disabled", text="Generiere Audio...")
         self.progress_bar.pack(fill="x", padx=18, pady=(0, 8))
         self.progress_bar.set(0.05)
         self.status_lbl.configure(text="Initialisiere Sprachgenerierung...", text_color="#38BDF8")
@@ -4451,7 +4461,7 @@ class GeminiTTSApp(ctk.CTk):
         # Uncheck auto-translate so subsequent generations won't re-translate already translated text
         self.auto_translate_var.set(False)
         self.status_lbl.configure(
-            text=f"✅ Text automatisch nach {target_lang_name} übersetzt. Generiere Sprache...",
+            text=f"Text automatisch nach {target_lang_name} übersetzt. Generiere Sprache...",
             text_color="#10B981"
         )
 
@@ -4517,9 +4527,9 @@ class GeminiTTSApp(ctk.CTk):
         self.is_generating = False
         self.progress_bar.set(1.0)
         self.after(800, lambda: self.progress_bar.pack_forget())
-        self.generate_btn.configure(state="normal", text="⚡ Audio generieren")
+        self.generate_btn.configure(state="normal", text="▶ Audio generieren")
         self.status_lbl.configure(
-            text=f"✅ Erfolgreich generiert ({duration:.1f}s)! Datei: {filename} ({file_size_kb:.1f} KB)",
+            text=f"Erfolgreich generiert ({duration:.1f}s)! Datei: {filename} ({file_size_kb:.1f} KB)",
             text_color="#10B981"
         )
         self.play_btn.configure(
@@ -4545,8 +4555,8 @@ class GeminiTTSApp(ctk.CTk):
     def _on_generation_error(self, err_msg: str):
         self.is_generating = False
         self.progress_bar.pack_forget()
-        self.generate_btn.configure(state="normal", text="⚡ Audio generieren")
-        self.status_lbl.configure(text=f"❌ Fehler: {err_msg}", text_color="#EF4444")
+        self.generate_btn.configure(state="normal", text="▶ Audio generieren")
+        self.status_lbl.configure(text=f"Fehler: {err_msg}", text_color="#EF4444")
         messagebox.showerror("Fehler bei Sprachgenerierung", err_msg)
 
     # ------------------ Audio Player Controls & Scrubbing ------------------

@@ -65,16 +65,16 @@ def format_release_notes(raw_notes: str) -> str:
 
         # Headings
         if stripped.startswith("#### "):
-            cleaned_lines.append(f"🔹 {clean_md(stripped[5:].strip())}\n")
+            cleaned_lines.append(f"  • {clean_md(stripped[5:].strip())}\n")
             continue
         elif stripped.startswith("### "):
-            cleaned_lines.append(f"📌 {clean_md(stripped[4:].strip())}\n")
+            cleaned_lines.append(f"• {clean_md(stripped[4:].strip())}\n")
             continue
         elif stripped.startswith("## "):
-            cleaned_lines.append(f"📢 {clean_md(stripped[3:].strip())}\n")
+            cleaned_lines.append(f"■ {clean_md(stripped[3:].strip())}\n")
             continue
         elif stripped.startswith("# "):
-            cleaned_lines.append(f"🚀 {clean_md(stripped[2:].strip())}\n")
+            cleaned_lines.append(f"◆ {clean_md(stripped[2:].strip())}\n")
             continue
 
         # List items (- or *)

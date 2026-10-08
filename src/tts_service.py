@@ -426,7 +426,7 @@ class GeminiTTSService:
             if "location" in err_msg.lower() or "region" in err_msg.lower() or "not available" in err_msg.lower() or resp.status_code == 403:
                 raise RuntimeError(
                     "Google Voice Replication ist in deiner Region (EWR/EU/Deutschland) aus Datenschutzgründen aktuell noch nicht freigegeben.\n\n"
-                    "💡 Empfehlung: Nutze den Reiter 'Voice Design' (Prompting) – dieser ist weltweit und in Deutschland uneingeschränkt verfügbar und erzeugt herausragende deutsche Stimmen!"
+                    "Empfehlung: Nutze den Reiter 'Voice Design' (Prompting) – dieser ist weltweit und in Deutschland uneingeschränkt verfügbar und erzeugt herausragende deutsche Stimmen!"
                 )
             raise RuntimeError(f"Google Voice Replication Fehler ({resp.status_code}): {err_msg}")
 
