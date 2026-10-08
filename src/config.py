@@ -34,6 +34,7 @@ def get_asset_path(filename: str) -> Path:
 
 ICON_PATH = get_asset_path("icon.ico")
 ICON_PNG_PATH = get_asset_path("icon.png")
+HEADER_LOGO_PATH = get_asset_path("header_logo.png")
 
 # Configure directories based on installation mode
 if IS_PORTABLE:
@@ -207,7 +208,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
     load_dotenv(Path.cwd() / ".env")
 
 # Application & Update Configuration
-APP_VERSION = "2.4.2"
+APP_VERSION = "2.4.3"
 GITHUB_REPO = "ZQP/TTS-Interface"
 
 # API Configuration

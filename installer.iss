@@ -5,7 +5,7 @@
 ; =====================================================================
 
 #define MyAppName "Gemini TTS Studio"
-#define MyAppVersion "2.4.2"
+#define MyAppVersion "2.4.3"
 #define MyAppPublisher "ZQP"
 #define MyAppURL "https://github.com/ZQP/TTS-Interface"
 #define MyAppExeName "GeminiTTSStudio.exe"
@@ -54,6 +54,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "assets\icon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
 Source: "assets\icon.png"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "assets\header_logo.png"; DestDir: "{app}\assets"; Flags: ignoreversion
 Source: ".env.example"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 

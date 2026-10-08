@@ -36,6 +36,7 @@ from .config import (
     TEMP_DIR,
     ICON_PATH,
     ICON_PNG_PATH,
+    HEADER_LOGO_PATH,
     get_output_dir,
     set_output_dir,
     load_custom_styles,
@@ -46,6 +47,7 @@ from .config import (
     delete_custom_voice,
     get_all_voices,
 )
+from .icons import get_ui_icon
 from .tts_service import GeminiTTSService
 from .audio_converter import convert_audio
 from .player import AudioPlayer
@@ -2473,6 +2475,55 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         self.auto_up_switch.pack(side="right")
 
+        # Theme / Erscheinungsbild Box
+        theme_box = ctk.CTkFrame(
+            f,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=14,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        theme_box.pack(fill="x", pady=(0, 6))
+
+        theme_content = ctk.CTkFrame(theme_box, fg_color="transparent")
+        theme_content.pack(fill="x", padx=14, pady=12)
+
+        theme_text_col = ctk.CTkFrame(theme_content, fg_color="transparent")
+        theme_text_col.pack(side="left", fill="x", expand=True)
+
+        ctk.CTkLabel(
+            theme_text_col,
+            text="Erscheinungsbild & Farbschema",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(anchor="w")
+
+        ctk.CTkLabel(
+            theme_text_col,
+            text="Wähle zwischen hellem, dunklem oder Windows-System-Farbschema.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(anchor="w")
+
+        cur_mode = ctk.get_appearance_mode()
+        self.theme_seg = ctk.CTkSegmentedButton(
+            theme_content,
+            values=["Hell", "Dunkel", "System"],
+            command=self._on_theme_selected,
+            height=32,
+            corner_radius=10,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SURFACE,
+            selected_color=M3_PRIMARY[0],
+            selected_hover_color=M3_PRIMARY_HOVER[0]
+        )
+        self.theme_seg.pack(side="right")
+        self.theme_seg.set("Dunkel" if cur_mode.lower() == "dark" else ("Hell" if cur_mode.lower() == "light" else "System"))
+
+    def _on_theme_selected(self, choice: str):
+        mode_map = {"Hell": "Light", "Dunkel": "Dark", "System": "System"}
+        self.parent_app._toggle_theme(mode_map.get(choice, "Light"))
+
     def _switch_tab(self, tab_name: str):
         self.current_tab = tab_name
         for name, frame in self.tab_frames.items():
@@ -2825,29 +2876,31 @@ class GeminiTTSApp(ctk.CTk):
         # ------------------ Header Bar ------------------
         self.header_frame = ctk.CTkFrame(self, height=64, corner_radius=0, fg_color=M3_SURFACE)
         self.header_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 10))
+        self.header_frame.grid_columnconfigure(0, weight=1)
         self.header_frame.grid_columnconfigure(1, weight=1)
 
         title_box = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        title_box.grid(row=0, column=0, padx=20, pady=14, sticky="w")
+        title_box.grid(row=0, column=0, padx=20, pady=12, sticky="w")
 
         # App Icon + Title
         logo_img = None
-        if ICON_PNG_PATH.exists():
+        target_icon_path = HEADER_LOGO_PATH if HEADER_LOGO_PATH.exists() else ICON_PNG_PATH
+        if target_icon_path.exists():
             try:
                 from PIL import Image
-                raw_logo = Image.open(str(ICON_PNG_PATH))
-                logo_img = ctk.CTkImage(light_image=raw_logo, dark_image=raw_logo, size=(26, 26))
+                raw_logo = Image.open(str(target_icon_path))
+                logo_img = ctk.CTkImage(light_image=raw_logo, dark_image=raw_logo, size=(34, 34))
             except Exception:
                 pass
 
         if logo_img:
             logo_lbl = ctk.CTkLabel(title_box, image=logo_img, text="")
-            logo_lbl.pack(side="left", padx=(0, 10))
+            logo_lbl.pack(side="left", padx=(0, 12))
 
         title_label = ctk.CTkLabel(
             title_box,
             text="Gemini TTS Studio",
-            font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
         title_label.pack(side="left")
@@ -2864,62 +2917,15 @@ class GeminiTTSApp(ctk.CTk):
         )
         version_badge.pack(side="left", padx=(10, 0))
 
-        # Status Pills (Clickable shortcuts to Settings)
-        pills_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        pills_frame.grid(row=0, column=1, padx=10, pady=14, sticky="w")
-
-        self.pill_voice = ctk.CTkButton(
-            pills_frame,
-            text="Stimme: Erinome ▾",
-            command=lambda: self._open_settings_dialog("voice"),
-            height=32,
-            corner_radius=16,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-            fg_color=M3_SURFACE_CONTAINER,
-            hover_color=M3_SURFACE_CONTAINER_HIGH,
-            text_color=COLOR_PRIMARY_TEXT,
-            border_width=1,
-            border_color=M3_OUTLINE_VARIANT
-        )
-        self.pill_voice.pack(side="left", padx=(0, 6))
-
-        self.pill_style = ctk.CTkButton(
-            pills_frame,
-            text="Stil: Sachlich ▾",
-            command=lambda: self._open_settings_dialog("style"),
-            height=32,
-            corner_radius=16,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-            fg_color=M3_SURFACE_CONTAINER,
-            hover_color=M3_SURFACE_CONTAINER_HIGH,
-            text_color=COLOR_PRIMARY_TEXT,
-            border_width=1,
-            border_color=M3_OUTLINE_VARIANT
-        )
-        self.pill_style.pack(side="left", padx=(0, 6))
-
-        self.pill_format = ctk.CTkButton(
-            pills_frame,
-            text="Audio: AAC 64k ▾",
-            command=lambda: self._open_settings_dialog("format"),
-            height=32,
-            corner_radius=16,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-            fg_color=M3_SURFACE_CONTAINER,
-            hover_color=M3_SURFACE_CONTAINER_HIGH,
-            text_color=COLOR_PRIMARY_TEXT,
-            border_width=1,
-            border_color=M3_OUTLINE_VARIANT
-        )
-        self.pill_format.pack(side="left")
-
         # Action Buttons on Right
-        actions_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        actions_frame.grid(row=0, column=2, padx=(0, 10), pady=14, sticky="e")
+        self.actions_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.actions_frame.grid(row=0, column=1, padx=20, pady=12, sticky="e")
 
         self.btn_settings = ctk.CTkButton(
-            actions_frame,
+            self.actions_frame,
             text="Einstellungen",
+            image=get_ui_icon("settings", "theme", 16),
+            compound="left",
             command=lambda: self._open_settings_dialog("voice"),
             height=36,
             corner_radius=18,
@@ -2929,21 +2935,7 @@ class GeminiTTSApp(ctk.CTk):
             text_color=M3_ON_PRIMARY_CONTAINER,
             border_width=0
         )
-        self.btn_settings.pack(side="left", padx=(0, 6))
-
-        self.theme_switch = ctk.CTkSwitch(
-            self.header_frame,
-            text="Dunkelmodus",
-            command=self._toggle_theme,
-            onvalue="Dark",
-            offvalue="Light",
-            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
-            text_color=COLOR_PRIMARY_TEXT,
-            progress_color=M3_PRIMARY[0]
-        )
-        self.theme_switch.grid(row=0, column=3, padx=20, pady=14, sticky="e")
-
-        self._update_header_status_pills()
+        self.btn_settings.pack(side="right")
 
         # ------------------ Main Auto-Scrollable Content Frame ------------------
         main_content = AutoScrollableFrame(self, fg_color="transparent")
@@ -2991,6 +2983,8 @@ class GeminiTTSApp(ctk.CTk):
         self.translate_single_btn = ctk.CTkButton(
             text_header_frame,
             text="In Zielsprache übersetzen",
+            image=get_ui_icon("globe", "theme", 14),
+            compound="left",
             command=self._translate_single_text,
             height=34,
             corner_radius=17,
@@ -3006,6 +3000,8 @@ class GeminiTTSApp(ctk.CTk):
         load_doc_btn = ctk.CTkButton(
             text_header_frame,
             text="Dokument laden",
+            image=get_ui_icon("folder", "theme", 14),
+            compound="left",
             command=self._load_document_to_single_text,
             height=34,
             corner_radius=17,
@@ -3025,6 +3021,112 @@ class GeminiTTSApp(ctk.CTk):
             text_color=COLOR_MUTED_TEXT
         )
         self.char_counter_lbl.pack(side="right", padx=(0, 8))
+
+        # Studio Configuration Bar: Working 1-click dropdowns for Voice, Tone/Style, and Audio Format
+        studio_config_bar = ctk.CTkFrame(self.single_text_card, fg_color="transparent")
+        studio_config_bar.pack(fill="x", padx=20, pady=(0, 8))
+
+        # 1. Voice Selector
+        ctk.CTkLabel(
+            studio_config_bar,
+            text="Stimme:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(side="left", padx=(0, 6))
+
+        voice_opts = [format_voice_display_label(v) for v in get_all_voices()]
+        self.voice_quick_menu = ctk.CTkOptionMenu(
+            studio_config_bar,
+            values=voice_opts,
+            variable=self.voice_var,
+            command=self._on_quick_voice_changed,
+            height=32,
+            width=210,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            fg_color=M3_SURFACE_CONTAINER,
+            button_color=("#D9E3E0", "#243834"),
+            button_hover_color=("#C8D7D3", "#304843"),
+            text_color=COLOR_PRIMARY_TEXT,
+            dropdown_fg_color=M3_SURFACE,
+            dropdown_hover_color=("#E0ECE9", "#1C302D"),
+            dropdown_text_color=COLOR_PRIMARY_TEXT
+        )
+        self.voice_quick_menu.pack(side="left", padx=(0, 14))
+
+        # 2. Tone / Style Selector
+        ctk.CTkLabel(
+            studio_config_bar,
+            text="Stil:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(side="left", padx=(0, 6))
+
+        style_opts = [
+            "Sachlich / Neutral",
+            "Freundlich & Warm",
+            "Begeistert & Dynamisch",
+            "Ruhig & Sanft",
+            "Hörbuch-Erzähler",
+            "Dramatisch & Spannend",
+            "Nachrichten-Sprecher"
+        ]
+        self.style_quick_menu = ctk.CTkOptionMenu(
+            studio_config_bar,
+            values=style_opts,
+            command=self._on_quick_style_changed,
+            height=32,
+            width=175,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            fg_color=M3_SURFACE_CONTAINER,
+            button_color=("#D9E3E0", "#243834"),
+            button_hover_color=("#C8D7D3", "#304843"),
+            text_color=COLOR_PRIMARY_TEXT,
+            dropdown_fg_color=M3_SURFACE,
+            dropdown_hover_color=("#E0ECE9", "#1C302D"),
+            dropdown_text_color=COLOR_PRIMARY_TEXT
+        )
+        self.style_quick_menu.set("Sachlich / Neutral")
+        self.style_quick_menu.pack(side="left", padx=(0, 14))
+
+        # 3. Format Selector
+        ctk.CTkLabel(
+            studio_config_bar,
+            text="Format:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(side="left", padx=(0, 6))
+
+        format_opts = [
+            "AAC 64k (Web)",
+            "MP3 192k (Standard)",
+            "MP3 320k (HQ)",
+            "WAV (Lossless)",
+            "FLAC (Lossless)",
+            "Opus 64k"
+        ]
+        self.format_quick_menu = ctk.CTkOptionMenu(
+            studio_config_bar,
+            values=format_opts,
+            command=self._on_quick_format_changed,
+            height=32,
+            width=145,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            fg_color=M3_SURFACE_CONTAINER,
+            button_color=("#D9E3E0", "#243834"),
+            button_hover_color=("#C8D7D3", "#304843"),
+            text_color=COLOR_PRIMARY_TEXT,
+            dropdown_fg_color=M3_SURFACE,
+            dropdown_hover_color=("#E0ECE9", "#1C302D"),
+            dropdown_text_color=COLOR_PRIMARY_TEXT
+        )
+        self.format_quick_menu.set("AAC 64k (Web)")
+        self.format_quick_menu.pack(side="left")
 
         # Expressive Quick-Tag Bar (Fast 1-click chip buttons directly above text area)
         quick_tag_bar = ctk.CTkFrame(self.single_text_card, fg_color="transparent")
@@ -3127,7 +3229,9 @@ class GeminiTTSApp(ctk.CTk):
         # Right: Prominent Generate CTA Button (Merged right into the card!)
         self.generate_btn = ctk.CTkButton(
             script_footer,
-            text="▶ Audio generieren",
+            text="Audio generieren",
+            image=get_ui_icon("sparkles", "white", 16),
+            compound="left",
             command=self._start_generation_thread,
             width=180,
             height=38,
@@ -3177,7 +3281,9 @@ class GeminiTTSApp(ctk.CTk):
 
         add_files_btn = ctk.CTkButton(
             toolbar_frame,
-            text="+ Dateien hinzufügen...",
+            text="Dateien hinzufügen...",
+            image=get_ui_icon("plus", "theme", 13),
+            compound="left",
             command=self._batch_add_files_dialog,
             height=34,
             corner_radius=17,
@@ -3192,6 +3298,8 @@ class GeminiTTSApp(ctk.CTk):
         add_folder_btn = ctk.CTkButton(
             toolbar_frame,
             text="Ordner importieren...",
+            image=get_ui_icon("folder", "theme", 13),
+            compound="left",
             command=self._batch_add_folder_dialog,
             height=34,
             corner_radius=17,
@@ -3207,6 +3315,8 @@ class GeminiTTSApp(ctk.CTk):
         clear_btn = ctk.CTkButton(
             toolbar_frame,
             text="Liste leeren",
+            image=get_ui_icon("trash", "danger", 13),
+            compound="left",
             command=self._batch_clear_queue,
             height=34,
             corner_radius=17,
@@ -3425,7 +3535,9 @@ class GeminiTTSApp(ctk.CTk):
 
         self.batch_start_btn = ctk.CTkButton(
             batch_action_btn_row,
-            text="▶ Alle Dateien in Warteschlange generieren",
+            text="Alle Dateien in Warteschlange generieren",
+            image=get_ui_icon("play", "white", 15),
+            compound="left",
             command=self._batch_start_processing,
             height=44,
             corner_radius=22,
@@ -3438,7 +3550,9 @@ class GeminiTTSApp(ctk.CTk):
 
         self.batch_cancel_btn = ctk.CTkButton(
             batch_action_btn_row,
-            text="■ Abbrechen",
+            text="Abbrechen",
+            image=get_ui_icon("stop", "danger", 13),
+            compound="left",
             command=self._batch_cancel,
             height=44,
             width=120,
@@ -3522,7 +3636,9 @@ class GeminiTTSApp(ctk.CTk):
 
         self.play_btn = ctk.CTkButton(
             controls_frame,
-            text="▶ Abspielen",
+            text="Abspielen",
+            image=get_ui_icon("play", "white", 13),
+            compound="left",
             command=self._toggle_playback,
             width=115,
             height=34,
@@ -3540,7 +3656,9 @@ class GeminiTTSApp(ctk.CTk):
 
         self.stop_btn = ctk.CTkButton(
             controls_frame,
-            text="■ Stopp",
+            text="Stopp",
+            image=get_ui_icon("stop", "danger", 13),
+            compound="left",
             command=self._stop_playback,
             width=80,
             height=34,
@@ -3609,6 +3727,8 @@ class GeminiTTSApp(ctk.CTk):
         self.export_btn = ctk.CTkButton(
             controls_frame,
             text="Exportieren...",
+            image=get_ui_icon("export", "theme", 14),
+            compound="left",
             command=self._export_audio,
             height=34,
             corner_radius=17,
@@ -3636,51 +3756,79 @@ class GeminiTTSApp(ctk.CTk):
             return
         self.settings_dialog = SettingsDialog(self, initial_tab=initial_tab)
 
+    def _sync_quick_controls(self):
+        """Synchronizes the main screen quick option menus with current configuration."""
+        if hasattr(self, "voice_quick_menu") and self.voice_quick_menu:
+            current_voice = self.voice_var.get()
+            values = self.voice_quick_menu.cget("values")
+            if current_voice in values:
+                self.voice_quick_menu.set(current_voice)
+
+        if hasattr(self, "style_quick_menu") and self.style_quick_menu:
+            current_style = getattr(self, "active_style_preset_name", "Sachlich")
+            values = self.style_quick_menu.cget("values")
+            for v in values:
+                if current_style.lower() in v.lower():
+                    self.style_quick_menu.set(v)
+                    break
+
+        if hasattr(self, "format_quick_menu") and self.format_quick_menu:
+            codec = self.codec_var.get().lower()
+            if "aac" in codec:
+                self.format_quick_menu.set("AAC 64k (Web)")
+            elif "mp3" in codec:
+                if "320" in self.bitrate_var.get():
+                    self.format_quick_menu.set("MP3 320k (HQ)")
+                else:
+                    self.format_quick_menu.set("MP3 192k (Standard)")
+            elif "pcm" in codec or "wav" in codec:
+                self.format_quick_menu.set("WAV (Lossless)")
+            elif "flac" in codec:
+                self.format_quick_menu.set("FLAC (Lossless)")
+            elif "opus" in codec:
+                self.format_quick_menu.set("Opus 64k")
+
     def _update_header_status_pills(self):
-        """Updates the status pills in the header bar based on current configuration."""
-        if not hasattr(self, "pill_voice") or not self.pill_voice.winfo_exists():
-            return
+        """Backward compatibility alias for _sync_quick_controls."""
+        self._sync_quick_controls()
 
-        # 1. Voice Pill (Clean German name, never cryptic ID)
-        raw_voice = self.voice_var.get()
-        voice_id = extract_voice_id_from_choice(raw_voice)
-        display_name = raw_voice.split(" (")[0].strip() if " (" in raw_voice else raw_voice.strip()
-        for v in get_all_voices():
-            if v.get("id") == voice_id:
-                n = v.get("name", "").strip() or v.get("id", "").strip()
-                display_name = n.split(" (")[0].strip() if " (" in n else n
-                break
+    def _on_quick_voice_changed(self, choice: str):
+        self.voice_var.set(choice)
+        self._on_voice_changed(choice)
 
-        if len(display_name) > 13:
-            display_name = display_name[:12] + "…"
-        self.pill_voice.configure(text=f"Stimme: {display_name} ▾")
+    def _on_quick_style_changed(self, choice: str):
+        mapping = {
+            "Sachlich / Neutral": ("Sachlich", "Sprich in einem sachlichen, klaren und professionellen Ton."),
+            "Freundlich & Warm": ("Freundlich", "Sprich warm, herzlich, nahbar und einladend."),
+            "Begeistert & Dynamisch": ("Begeistert", "Sprich voller Energie, mitreißend und enthusiastisch."),
+            "Ruhig & Sanft": ("Ruhig", "Sprich sehr ruhig, entspannt, sanft und bedacht."),
+            "Hörbuch-Erzähler": ("Hörbuch", "Sprich wie ein professioneller Roman- und Hörbuchsprecher."),
+            "Dramatisch & Spannend": ("Dramatisch", "Sprich spannungsgeladen, packend und intensiv."),
+            "Nachrichten-Sprecher": ("Nachrichten", "Sprich wie ein professioneller Nachrichtensprecher.")
+        }
+        name, prompt = mapping.get(choice, ("Sachlich", ""))
+        self.active_style_preset_name = name
+        self.system_prompt_text = prompt
 
-        # 2. Style Pill (Clean compact name, no emoji font measurement bugs)
-        style_text = self._get_current_system_prompt()
-        if not style_text:
-            style_label = "Standard"
-        else:
-            style_label = getattr(self, "active_style_preset_name", "Regie") or "Regie"
-
-        if "Sachlich" in style_label:
-            short_style = "Sachlich"
-        elif len(style_label) > 11:
-            short_style = style_label[:10] + "…"
-        else:
-            short_style = style_label
-        self.pill_style.configure(text=f"Stil: {short_style} ▾")
-
-        # 3. Format Pill (Audio: AAC 64k ▾)
-        codec_name = self.codec_var.get().replace("libmp3lame", "mp3").replace("pcm_s16le", "wav").upper()
-        if "AAC" in codec_name:
-            codec_name = "AAC"
-        elif "MP3" in codec_name:
-            codec_name = "MP3"
-        elif "WAV" in codec_name:
-            codec_name = "WAV"
-
-        bitrate_raw = self.bitrate_var.get().replace(" kbit/s", "k").replace(" ", "")
-        self.pill_format.configure(text=f"Audio: {codec_name} {bitrate_raw} ▾")
+    def _on_quick_format_changed(self, choice: str):
+        if "AAC" in choice:
+            self.codec_var.set("aac")
+            self.bitrate_var.set("64 kbit/s")
+        elif "192k" in choice:
+            self.codec_var.set("libmp3lame")
+            self.bitrate_var.set("192 kbit/s")
+        elif "320k" in choice:
+            self.codec_var.set("libmp3lame")
+            self.bitrate_var.set("320 kbit/s")
+        elif "WAV" in choice:
+            self.codec_var.set("pcm_s16le")
+            self.bitrate_var.set("1411 kbit/s")
+        elif "FLAC" in choice:
+            self.codec_var.set("flac")
+            self.bitrate_var.set("1411 kbit/s")
+        elif "Opus" in choice:
+            self.codec_var.set("libopus")
+            self.bitrate_var.set("64 kbit/s")
 
     # ------------------ Mode Switching (Zero Position Shift) ------------------
 
@@ -4216,13 +4364,15 @@ class GeminiTTSApp(ctk.CTk):
     def _show_update_badge(self, update_info: Dict[str, Any]):
         """Renders an eye-catching update button in the header bar."""
         if self.update_btn and self.update_btn.winfo_exists():
-            self.update_btn.grid()
+            self.update_btn.pack(side="right", padx=(0, 10))
             return
 
         latest_ver = update_info.get("latest_version", "")
         self.update_btn = ctk.CTkButton(
-            self.header_frame,
+            self.actions_frame,
             text=f"Update {latest_ver} verfügbar",
+            image=get_ui_icon("download", "white", 14),
+            compound="left",
             command=lambda: self._open_update_dialog(update_info),
             height=36,
             corner_radius=18,
@@ -4232,7 +4382,7 @@ class GeminiTTSApp(ctk.CTk):
             text_color="#FFFFFF",
             border_width=0
         )
-        self.update_btn.grid(row=0, column=1, padx=(10, 14), pady=14, sticky="e")
+        self.update_btn.pack(side="right", padx=(0, 10))
 
     def _open_update_dialog(self, update_info: Dict[str, Any]):
         """Opens the full UpdateDialog."""
@@ -4260,9 +4410,12 @@ class GeminiTTSApp(ctk.CTk):
 
         threading.Thread(target=run_check, daemon=True).start()
 
-    def _toggle_theme(self):
-        mode = ctk.get_appearance_mode()
-        new_mode = "Light" if mode == "Dark" else "Dark"
+    def _toggle_theme(self, mode: Optional[str] = None):
+        if mode is not None:
+            new_mode = mode
+        else:
+            current = ctk.get_appearance_mode()
+            new_mode = "Light" if current == "Dark" else "Dark"
         ctk.set_appearance_mode(new_mode)
         if hasattr(self, "waveform_view"):
             self.waveform_view.redraw()
@@ -4311,6 +4464,8 @@ class GeminiTTSApp(ctk.CTk):
         options = [format_voice_display_label(v) for v in filtered]
         if hasattr(self, "voice_menu"):
             self.voice_menu.configure(values=options)
+        if hasattr(self, "voice_quick_menu"):
+            self.voice_quick_menu.configure(values=options)
 
         target_option = None
         if select_voice_id:
@@ -4348,6 +4503,8 @@ class GeminiTTSApp(ctk.CTk):
         options = [format_voice_display_label(v) for v in filtered]
         if hasattr(self, "voice_menu"):
             self.voice_menu.configure(values=options)
+        if hasattr(self, "voice_quick_menu"):
+            self.voice_quick_menu.configure(values=options)
         if options:
             self.voice_var.set(options[0])
             self._on_voice_changed(options[0])
@@ -4527,7 +4684,7 @@ class GeminiTTSApp(ctk.CTk):
         self.is_generating = False
         self.progress_bar.set(1.0)
         self.after(800, lambda: self.progress_bar.pack_forget())
-        self.generate_btn.configure(state="normal", text="▶ Audio generieren")
+        self.generate_btn.configure(state="normal", text="Audio generieren", image=get_ui_icon("sparkles", "white", 16))
         self.status_lbl.configure(
             text=f"Erfolgreich generiert ({duration:.1f}s)! Datei: {filename} ({file_size_kb:.1f} KB)",
             text_color="#10B981"
@@ -4537,7 +4694,8 @@ class GeminiTTSApp(ctk.CTk):
             fg_color=M3_PRIMARY,
             text_color=("#FFFFFF", "#00201C"),
             border_width=0,
-            text="▶ Abspielen"
+            text="Abspielen",
+            image=get_ui_icon("play", "white", 13)
         )
         self.stop_btn.configure(state="normal")
         self.export_btn.configure(state="normal")
@@ -4555,7 +4713,7 @@ class GeminiTTSApp(ctk.CTk):
     def _on_generation_error(self, err_msg: str):
         self.is_generating = False
         self.progress_bar.pack_forget()
-        self.generate_btn.configure(state="normal", text="▶ Audio generieren")
+        self.generate_btn.configure(state="normal", text="Audio generieren", image=get_ui_icon("sparkles", "white", 16))
         self.status_lbl.configure(text=f"Fehler: {err_msg}", text_color="#EF4444")
         messagebox.showerror("Fehler bei Sprachgenerierung", err_msg)
 
@@ -4598,17 +4756,17 @@ class GeminiTTSApp(ctk.CTk):
 
         if self.player.is_playing() and not self.player.is_paused():
             self.player.pause()
-            self.play_btn.configure(text="▶ Fortsetzen")
+            self.play_btn.configure(text="Fortsetzen", image=get_ui_icon("play", "white", 13))
         elif self.player.is_paused():
             self.player.resume()
-            self.play_btn.configure(text="⏸ Pause")
+            self.play_btn.configure(text="Pause", image=get_ui_icon("pause", "white", 13))
         else:
             self.player.play()
-            self.play_btn.configure(text="⏸ Pause")
+            self.play_btn.configure(text="Pause", image=get_ui_icon("pause", "white", 13))
 
     def _stop_playback(self):
         self.player.stop()
-        self.play_btn.configure(text="▶ Abspielen")
+        self.play_btn.configure(text="Abspielen", image=get_ui_icon("play", "white", 13))
         self.timeline_slider.set(0.0)
         if hasattr(self, "waveform_view"):
             self.waveform_view.set_progress(0.0)
@@ -4631,7 +4789,7 @@ class GeminiTTSApp(ctk.CTk):
                 self.time_lbl.configure(text=f"{self._format_time(curr)} / {self._format_time(total)}")
                 
                 if not self.player.is_playing() and not self.player.is_paused():
-                    self.play_btn.configure(text="▶ Abspielen")
+                    self.play_btn.configure(text="Abspielen", image=get_ui_icon("play", "white", 13))
                     self.timeline_slider.set(0.0)
                     if hasattr(self, "waveform_view"):
                         self.waveform_view.set_progress(0.0)
