@@ -208,7 +208,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
 
 # Application & Update Configuration
 APP_VERSION = "2.4.1"
-GITHUB_REPO = "MaKammi/TTS-Interface"
+GITHUB_REPO = "ZQP/TTS-Interface"
 
 # API Configuration
 DEFAULT_API_KEY = os.getenv("GEMINI_API_KEY", "")
