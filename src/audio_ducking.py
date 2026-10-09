@@ -80,15 +80,18 @@ def apply_audio_ducking(
 
     # Run FFmpeg headless
     startupinfo = None
+    creationflags = 0
     if os.name == "nt":
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        creationflags = subprocess.CREATE_NO_WINDOW
 
     result = subprocess.run(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        startupinfo=startupinfo
+        startupinfo=startupinfo,
+        creationflags=creationflags
     )
 
     if result.returncode != 0:
@@ -107,7 +110,13 @@ def apply_audio_ducking(
             "-ac", "1",
             str(output_file)
         ]
-        res_fb = subprocess.run(cmd_fallback, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=startupinfo)
+        res_fb = subprocess.run(
+            cmd_fallback,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            startupinfo=startupinfo,
+            creationflags=creationflags
+        )
         if res_fb.returncode != 0:
             raise RuntimeError(f"FFmpeg Ducking fehlgeschlagen: {res_fb.stderr.decode('utf-8', errors='ignore')}")
 

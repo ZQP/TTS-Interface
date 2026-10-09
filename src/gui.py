@@ -9,6 +9,7 @@ import base64
 import math
 import os
 import sys
+import shutil
 import struct
 import subprocess
 import threading
@@ -1170,6 +1171,271 @@ class LexiconDialog(ctk.CTkToplevel):
                 self.after(0, lambda: self.probe_btn.configure(state="normal", text="▶ Audio-Probe hören"))
 
         threading.Thread(target=run_probe, daemon=True).start()
+
+
+class HistoryDialog(ctk.CTkToplevel):
+    """
+    Dedicated Session Take History Dialog.
+    Allows reviewing all synthesized takes from the session, listening directly,
+    loading takes into the main player/waveform, or exporting them to disk.
+    """
+
+    def __init__(self, parent: "GeminiTTSApp"):
+        super().__init__(parent)
+        self.parent_app = parent
+        self.title("Gemini TTS Studio - Take-Verlauf der Sitzung")
+        self.geometry("900x620")
+        self.minsize(800, 480)
+        apply_app_icon(self)
+
+        self.preview_player = AudioPlayer()
+
+        self._build_ui()
+        self._refresh_history_list()
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.transient(parent)
+        self.grab_set()
+
+    def _on_close(self):
+        try:
+            self.preview_player.stop()
+        except Exception:
+            pass
+        if self.parent_app:
+            self.parent_app.history_dialog = None
+        self.destroy()
+
+    def _build_ui(self):
+        container = ctk.CTkFrame(
+            self,
+            corner_radius=18,
+            fg_color=M3_SURFACE,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        container.pack(padx=16, pady=16, fill="both", expand=True)
+
+        # Header
+        header = ctk.CTkFrame(container, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(16, 12))
+
+        title_col = ctk.CTkFrame(header, fg_color="transparent")
+        title_col.pack(side="left")
+
+        dlg_title = ctk.CTkLabel(
+            title_col,
+            text="Take-Verlauf der Sitzung",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        dlg_title.pack(anchor="w")
+
+        self.dlg_sub = ctk.CTkLabel(
+            title_col,
+            text="Alle bisher generierten Audio-Takes dieser Sitzung. Höre sie direkt an oder lade sie in den Haupt-Player.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=COLOR_MUTED_TEXT
+        )
+        self.dlg_sub.pack(anchor="w")
+
+        close_btn = ctk.CTkButton(
+            header,
+            text="✕",
+            command=self._on_close,
+            width=32,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=COLOR_MUTED_TEXT
+        )
+        close_btn.pack(side="right")
+
+        # Table Header Row
+        tbl_hdr = ctk.CTkFrame(container, fg_color=M3_SURFACE_CONTAINER, height=32, corner_radius=8)
+        tbl_hdr.pack(fill="x", padx=20, pady=(0, 6))
+
+        ctk.CTkLabel(tbl_hdr, text="Uhrzeit", width=65, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(tbl_hdr, text="Stimme", width=115, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(tbl_hdr, text="Dauer", width=55, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(tbl_hdr, text="Textauszug", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", fill="x", expand=True, padx=8)
+        ctk.CTkLabel(tbl_hdr, text="Aktionen", width=225, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="right", padx=8)
+
+        # Scrollable Take List
+        self.takes_scroll = ctk.CTkScrollableFrame(
+            container,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=12,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        self.takes_scroll.pack(fill="both", expand=True, padx=20, pady=(0, 12))
+
+        # Action Footer
+        footer = ctk.CTkFrame(container, fg_color="transparent")
+        footer.pack(fill="x", padx=20, pady=(0, 14))
+
+        self.btn_clear = ctk.CTkButton(
+            footer,
+            text="🗑 Verlauf leeren",
+            command=self._clear_history,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_ERROR_HOVER,
+            text_color=M3_ERROR,
+            border_width=1,
+            border_color=M3_ERROR_CONTAINER
+        )
+        self.btn_clear.pack(side="left")
+
+        self.btn_close = ctk.CTkButton(
+            footer,
+            text="Schließen",
+            command=self._on_close,
+            height=34,
+            width=110,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER,
+            hover_color=M3_SURFACE,
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.btn_close.pack(side="right")
+
+    def _refresh_history_list(self):
+        for w in self.takes_scroll.winfo_children():
+            w.destroy()
+
+        history = load_history()
+        self.dlg_sub.configure(text=f"{len(history)} Takes in dieser Sitzung erfasst.")
+
+        if not history:
+            ctk.CTkLabel(
+                self.takes_scroll,
+                text="Noch keine Takes generiert. Generierte Audios werden automatisch hier erfasst.",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(pady=35)
+            return
+
+        for item in history:
+            row = ctk.CTkFrame(
+                self.takes_scroll,
+                fg_color=M3_SURFACE,
+                corner_radius=8,
+                border_width=1,
+                border_color=M3_OUTLINE_VARIANT
+            )
+            row.pack(fill="x", pady=3, padx=2)
+
+            ctk.CTkLabel(row, text=item.get("timestamp", ""), width=65, font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+            ctk.CTkLabel(row, text=item.get("voice", ""), width=115, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=M3_PRIMARY).pack(side="left", padx=4)
+            ctk.CTkLabel(row, text=f"{item.get('duration', 0):.1f}s", width=55, font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+            ctk.CTkLabel(row, text=item.get("snippet", ""), font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_PRIMARY_TEXT, anchor="w").pack(side="left", fill="x", expand=True, padx=8)
+
+            act_frame = ctk.CTkFrame(row, fg_color="transparent")
+            act_frame.pack(side="right", padx=6, pady=4)
+
+            audio_p = Path(item.get("audio_path", ""))
+
+            btn_play = ctk.CTkButton(
+                act_frame,
+                text="▶ Anhören",
+                command=lambda p=audio_p: self._play_take(p),
+                width=76,
+                height=26,
+                corner_radius=13,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+                fg_color=M3_PRIMARY_CONTAINER,
+                text_color=M3_ON_PRIMARY_CONTAINER
+            )
+            btn_play.pack(side="left", padx=2)
+
+            btn_load = ctk.CTkButton(
+                act_frame,
+                text="In Player",
+                command=lambda p=audio_p, itm=item: self._load_into_main_player(p, itm),
+                width=72,
+                height=26,
+                corner_radius=13,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+                fg_color=M3_SURFACE_CONTAINER,
+                text_color=M3_PRIMARY,
+                border_width=1,
+                border_color=M3_OUTLINE
+            )
+            btn_load.pack(side="left", padx=2)
+
+            btn_export = ctk.CTkButton(
+                act_frame,
+                text="💾",
+                command=lambda p=audio_p: self._export_take(p),
+                width=28,
+                height=26,
+                corner_radius=13,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                fg_color="transparent",
+                hover_color=M3_SURFACE_CONTAINER,
+                text_color=COLOR_PRIMARY_TEXT,
+                border_width=1,
+                border_color=M3_OUTLINE_VARIANT
+            )
+            btn_export.pack(side="left", padx=2)
+
+    def _play_take(self, audio_p: Path):
+        if audio_p and audio_p.exists():
+            try:
+                self.preview_player.load(audio_p)
+                self.preview_player.play()
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Konnte Audio nicht abspielen: {e}")
+        else:
+            messagebox.showwarning("Hinweis", "Die Audiodatei existiert nicht mehr.")
+
+    def _load_into_main_player(self, audio_p: Path, item: Dict[str, Any]):
+        if audio_p and audio_p.exists():
+            try:
+                self.preview_player.stop()
+            except Exception:
+                pass
+            self.parent_app.current_converted_file = audio_p
+            self.parent_app.player.load(audio_p)
+            if hasattr(self.parent_app, "waveform_view"):
+                self.parent_app.waveform_view.load_audio(audio_p)
+            self.parent_app._update_player_state_ui()
+            self.parent_app.status_lbl.configure(
+                text=f"Take '{item.get('voice', '')}' ({item.get('duration', 0):.1f}s) in Player geladen.",
+                text_color="#10B981"
+            )
+            messagebox.showinfo("Erfolg", f"Take '{item.get('voice', '')}' wurde in den Haupt-Player geladen.")
+        else:
+            messagebox.showwarning("Hinweis", "Die Audiodatei existiert nicht mehr.")
+
+    def _export_take(self, audio_p: Path):
+        if not audio_p or not audio_p.exists():
+            messagebox.showwarning("Hinweis", "Die Datei existiert nicht mehr.")
+            return
+        dest = filedialog.asksaveasfilename(
+            title="Take exportieren",
+            defaultextension=audio_p.suffix,
+            initialfile=audio_p.name,
+            filetypes=[(f"Audio ({audio_p.suffix})", f"*{audio_p.suffix}"), ("Alle Dateien", "*.*")]
+        )
+        if dest:
+            try:
+                shutil.copy2(audio_p, dest)
+                messagebox.showinfo("Exportiert", f"Datei erfolgreich gespeichert unter:\n{dest}")
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Konnte Datei nicht exportieren: {e}")
+
+    def _clear_history(self):
+        if messagebox.askyesno("Verlauf leeren", "Möchtest du wirklich alle aufgezeichneten Takes dieser Sitzung löschen?"):
+            clear_history()
+            self._refresh_history_list()
 
 
 class SubtitleStudioDialog(ctk.CTkToplevel):
@@ -3911,6 +4177,7 @@ class GeminiTTSApp(ctk.CTk):
         # Dialogs & Extended Features State
         self.lexicon_dialog: Optional[LexiconDialog] = None
         self.subtitle_dialog: Optional[SubtitleStudioDialog] = None
+        self.history_dialog: Optional[HistoryDialog] = None
 
         # Audio Ducking State (Collapsed & Disabled by default)
         self.is_ducking_collapsed = True
@@ -3921,15 +4188,22 @@ class GeminiTTSApp(ctk.CTk):
         self.ducking_attenuation_var = ctk.DoubleVar(value=-14.0)
         self.ducking_fade_var = ctk.BooleanVar(value=True)
 
-        # History & A/B Comparison Lab State (Collapsed by default)
+        # Smart A/B Comparison Lab State (Collapsed by default, only in Single-Text Mode)
         self.is_ab_collapsed = True
+        self.ab_voice_a_var = ctk.StringVar(value=self.voice_var.get())
+        default_b_voice = voice_options[1] if len(voice_options) > 1 else self.voice_var.get()
+        self.ab_voice_b_var = ctk.StringVar(value=default_b_voice)
+        self.ab_cached_a: Optional[Dict[str, Any]] = None
+        self.ab_cached_b: Optional[Dict[str, Any]] = None
         self.slot_a_take: Optional[Dict[str, Any]] = None
         self.slot_b_take: Optional[Dict[str, Any]] = None
 
-        # Multi-Speaker / Script Mode State
+        # Multi-Speaker / Script Mode State & Performance Debounce
         self.dialogue_pause_var = ctk.IntVar(value=350)
         self.detected_speaker_vars: Dict[str, ctk.StringVar] = {}
         self.is_generating_dialogue = False
+        self._script_debounce_timer: Optional[str] = None
+        self._last_detected_speakers: List[str] = []
 
         self._build_ui()
         self._setup_player_timer()
@@ -4007,6 +4281,23 @@ class GeminiTTSApp(ctk.CTk):
             border_width=0
         )
         self.btn_settings.pack(side="right")
+
+        self.btn_history = ctk.CTkButton(
+            self.actions_frame,
+            text="Take-Verlauf",
+            image=get_ui_icon("history", "theme", 15),
+            compound="left",
+            command=self._open_history_dialog,
+            height=36,
+            corner_radius=18,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1.5,
+            border_color=M3_OUTLINE
+        )
+        self.btn_history.pack(side="right", padx=(0, 10))
 
         self.btn_lexicon = ctk.CTkButton(
             self.actions_frame,
@@ -4455,6 +4746,217 @@ class GeminiTTSApp(ctk.CTk):
         self.progress_bar.pack(fill="x", padx=20, pady=(0, 6))
         self.progress_bar.set(0.0)
         self.progress_bar.pack_forget()
+
+        # Collapsible Accordion: Smart A/B Voice Comparison (Optional & Off by default, only in Single-Text Mode)
+        self.ab_section = ctk.CTkFrame(self.single_text_card, fg_color="transparent")
+        self.ab_section.pack(fill="x", padx=20, pady=(0, 10))
+
+        ab_hdr_row = ctk.CTkFrame(self.ab_section, fg_color="transparent")
+        ab_hdr_row.pack(fill="x", pady=(0, 2))
+
+        self.ab_toggle_btn = ctk.CTkButton(
+            ab_hdr_row,
+            text="⚖️ A/B-Stimmenvergleich (Optional)  ▾",
+            command=self._toggle_ab_panel,
+            height=26,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=COLOR_MUTED_TEXT,
+            anchor="w"
+        )
+        self.ab_toggle_btn.pack(side="left")
+
+        self.ab_body_frame = ctk.CTkFrame(
+            self.ab_section,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=14,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        # Starts collapsed!
+
+        ab_inner = ctk.CTkFrame(self.ab_body_frame, fg_color="transparent")
+        ab_inner.pack(fill="x", padx=16, pady=12)
+
+        # Description
+        ab_desc = ctk.CTkLabel(
+            ab_inner,
+            text="Vergleiche zwei Stimmen direkt für den aktuellen Text. Mit 1 Klick übernimmst du den Favoriten als Hauptaufnahme.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=COLOR_MUTED_TEXT,
+            anchor="w"
+        )
+        ab_desc.pack(fill="x", pady=(0, 8))
+
+        # 2-Column Voice Selectors Grid
+        ab_grid = ctk.CTkFrame(ab_inner, fg_color="transparent")
+        ab_grid.pack(fill="x", pady=(0, 10))
+        ab_grid.grid_columnconfigure((0, 1), weight=1)
+
+        # Box Variant A
+        box_a = ctk.CTkFrame(ab_grid, fg_color=M3_SURFACE, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
+        box_a.grid(row=0, column=0, sticky="nsew", padx=(0, 6), pady=2)
+
+        lbl_a_hdr = ctk.CTkFrame(box_a, fg_color="transparent")
+        lbl_a_hdr.pack(fill="x", padx=12, pady=(8, 4))
+        ctk.CTkLabel(lbl_a_hdr, text="Variante A (Aktuelle Stimme)", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=M3_PRIMARY).pack(side="left")
+        self.ab_status_a_lbl = ctk.CTkLabel(lbl_a_hdr, text="Noch nicht generiert", font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), text_color=COLOR_MUTED_TEXT)
+        self.ab_status_a_lbl.pack(side="right")
+
+        self.ab_voice_a_menu = ctk.CTkOptionMenu(
+            box_a,
+            values=voice_opts,
+            variable=self.ab_voice_a_var,
+            command=lambda v: self._on_ab_voice_changed("A", v),
+            height=30,
+            corner_radius=15,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            fg_color=M3_SURFACE_CONTAINER,
+            button_color=("#D9E3E0", "#243834"),
+            button_hover_color=("#C8D7D3", "#304843"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.ab_voice_a_menu.pack(fill="x", padx=12, pady=(0, 10))
+
+        # Box Variant B
+        box_b = ctk.CTkFrame(ab_grid, fg_color=M3_SURFACE, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
+        box_b.grid(row=0, column=1, sticky="nsew", padx=(6, 0), pady=2)
+
+        lbl_b_hdr = ctk.CTkFrame(box_b, fg_color="transparent")
+        lbl_b_hdr.pack(fill="x", padx=12, pady=(8, 4))
+        ctk.CTkLabel(lbl_b_hdr, text="Variante B (Vergleichsstimme)", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=M3_PRIMARY).pack(side="left")
+        self.ab_status_b_lbl = ctk.CTkLabel(lbl_b_hdr, text="Wartet auf Generierung", font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), text_color=COLOR_MUTED_TEXT)
+        self.ab_status_b_lbl.pack(side="right")
+
+        self.ab_voice_b_menu = ctk.CTkOptionMenu(
+            box_b,
+            values=voice_opts,
+            variable=self.ab_voice_b_var,
+            command=lambda v: self._on_ab_voice_changed("B", v),
+            height=30,
+            corner_radius=15,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            fg_color=M3_SURFACE_CONTAINER,
+            button_color=("#D9E3E0", "#243834"),
+            button_hover_color=("#C8D7D3", "#304843"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.ab_voice_b_menu.pack(fill="x", padx=12, pady=(0, 10))
+
+        # Action / Generation Bar
+        ab_action_bar = ctk.CTkFrame(ab_inner, fg_color="transparent")
+        ab_action_bar.pack(fill="x", pady=(0, 8))
+
+        self.btn_ab_generate = ctk.CTkButton(
+            ab_action_bar,
+            text="✨ Beide Varianten generieren (A & B)",
+            command=self._start_ab_generation,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_CTA,
+            hover_color=M3_CTA_HOVER,
+            text_color="#FFFFFF"
+        )
+        self.btn_ab_generate.pack(side="left")
+
+        self.ab_gen_status_lbl = ctk.CTkLabel(
+            ab_action_bar,
+            text="",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=COLOR_MUTED_TEXT
+        )
+        self.ab_gen_status_lbl.pack(side="left", padx=(12, 0))
+
+        # Result Comparison Cards Container
+        self.ab_results_frame = ctk.CTkFrame(ab_inner, fg_color="transparent")
+        self.ab_results_frame.pack(fill="x", pady=(4, 0))
+        self.ab_results_frame.grid_columnconfigure((0, 1), weight=1)
+
+        # Card Variant A Result
+        self.ab_card_a = ctk.CTkFrame(self.ab_results_frame, fg_color=M3_SURFACE, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
+        self.ab_card_a.grid(row=0, column=0, sticky="nsew", padx=(0, 6), pady=2)
+
+        self.ab_card_a_title = ctk.CTkLabel(self.ab_card_a, text="Variante A", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_PRIMARY_TEXT)
+        self.ab_card_a_title.pack(anchor="w", padx=12, pady=(8, 2))
+
+        self.ab_card_a_dur = ctk.CTkLabel(self.ab_card_a, text="Keine Aufnahme vorhanden", font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT)
+        self.ab_card_a_dur.pack(anchor="w", padx=12, pady=(0, 8))
+
+        card_a_acts = ctk.CTkFrame(self.ab_card_a, fg_color="transparent")
+        card_a_acts.pack(fill="x", padx=12, pady=(0, 10))
+
+        self.btn_listen_a = ctk.CTkButton(
+            card_a_acts,
+            text="▶ Hören A",
+            command=lambda: self._play_ab_variant("A"),
+            height=28,
+            width=80,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            fg_color=M3_PRIMARY_CONTAINER,
+            text_color=M3_ON_PRIMARY_CONTAINER
+        )
+        self.btn_listen_a.pack(side="left", padx=(0, 6))
+
+        self.btn_adopt_a = ctk.CTkButton(
+            card_a_acts,
+            text="✓ Als Hauptaufnahme",
+            command=lambda: self._adopt_ab_variant("A"),
+            height=28,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER,
+            hover_color=M3_PRIMARY_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+        self.btn_adopt_a.pack(side="left")
+
+        # Card Variant B Result
+        self.ab_card_b = ctk.CTkFrame(self.ab_results_frame, fg_color=M3_SURFACE, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
+        self.ab_card_b.grid(row=0, column=1, sticky="nsew", padx=(6, 0), pady=2)
+
+        self.ab_card_b_title = ctk.CTkLabel(self.ab_card_b, text="Variante B", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_PRIMARY_TEXT)
+        self.ab_card_b_title.pack(anchor="w", padx=12, pady=(8, 2))
+
+        self.ab_card_b_dur = ctk.CTkLabel(self.ab_card_b, text="Keine Aufnahme vorhanden", font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT)
+        self.ab_card_b_dur.pack(anchor="w", padx=12, pady=(0, 8))
+
+        card_b_acts = ctk.CTkFrame(self.ab_card_b, fg_color="transparent")
+        card_b_acts.pack(fill="x", padx=12, pady=(0, 10))
+
+        self.btn_listen_b = ctk.CTkButton(
+            card_b_acts,
+            text="▶ Hören B",
+            command=lambda: self._play_ab_variant("B"),
+            height=28,
+            width=80,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            fg_color=M3_SECONDARY_CONTAINER,
+            text_color=M3_ON_SECONDARY_CONTAINER
+        )
+        self.btn_listen_b.pack(side="left", padx=(0, 6))
+
+        self.btn_adopt_b = ctk.CTkButton(
+            card_b_acts,
+            text="✓ Als Hauptaufnahme",
+            command=lambda: self._adopt_ab_variant("B"),
+            height=28,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER,
+            hover_color=M3_PRIMARY_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+        self.btn_adopt_b.pack(side="left")
 
         # 2C: Multi-Speaker Script & Dialogue Card (Instantiated, packed only in script mode)
         self.script_dialog_card = ctk.CTkFrame(
@@ -4982,125 +5484,6 @@ class GeminiTTSApp(ctk.CTk):
         self.action_container = ctk.CTkFrame(self, width=0, height=0)
         self.single_action_card = ctk.CTkFrame(self, width=0, height=0)
 
-        # ------------------ 6. Collapsible Generation History & A/B Comparison Lab (Optional & Collapsed by default) ------------------
-        self.ab_section = ctk.CTkFrame(main_content, fg_color="transparent")
-        self.ab_section.pack(fill="x", pady=(0, 4))
-
-        ab_hdr_row = ctk.CTkFrame(self.ab_section, fg_color="transparent")
-        ab_hdr_row.pack(fill="x", pady=(0, 2))
-
-        self.ab_toggle_btn = ctk.CTkButton(
-            ab_hdr_row,
-            text="⚖️ A/B-Vergleich & Take-Verlauf (Optional)  ▾",
-            command=self._toggle_ab_panel,
-            height=26,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-            fg_color="transparent",
-            hover_color=M3_SURFACE_CONTAINER,
-            text_color=COLOR_MUTED_TEXT,
-            anchor="w"
-        )
-        self.ab_toggle_btn.pack(side="left")
-
-        self.ab_body_frame = ctk.CTkFrame(
-            self.ab_section,
-            fg_color=M3_SURFACE,
-            corner_radius=14,
-            border_width=1.5,
-            border_color=M3_OUTLINE_VARIANT
-        )
-        # ab_body_frame starts hidden/collapsed!
-
-        # Top row inside ab_body_frame: Slot A vs Slot B Cards
-        ab_slots_row = ctk.CTkFrame(self.ab_body_frame, fg_color="transparent")
-        ab_slots_row.pack(fill="x", padx=14, pady=(10, 8))
-        ab_slots_row.grid_columnconfigure((0, 2), weight=1)
-
-        # Slot A Card
-        self.slot_a_card = ctk.CTkFrame(ab_slots_row, fg_color=M3_SURFACE_CONTAINER, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
-        self.slot_a_card.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=2)
-
-        ctk.CTkLabel(self.slot_a_card, text="Slot A (Referenz-Take):", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=M3_PRIMARY).pack(anchor="w", padx=10, pady=(6, 2))
-        self.slot_a_lbl = ctk.CTkLabel(self.slot_a_card, text="Kein Take zugewiesen", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_PRIMARY_TEXT, anchor="w")
-        self.slot_a_lbl.pack(anchor="w", padx=10, pady=(0, 6))
-
-        # Center A/B Comparison Quick Switch
-        ab_toggle_box = ctk.CTkFrame(ab_slots_row, fg_color="transparent")
-        ab_toggle_box.grid(row=0, column=1, padx=6, pady=2)
-
-        ctk.CTkLabel(ab_toggle_box, text="Sofort-Vergleich:", font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(pady=(2, 2))
-        btn_ab_row = ctk.CTkFrame(ab_toggle_box, fg_color="transparent")
-        btn_ab_row.pack()
-
-        self.btn_listen_a = ctk.CTkButton(
-            btn_ab_row,
-            text="◀ Höre A",
-            command=lambda: self._play_slot("A"),
-            height=28,
-            width=75,
-            corner_radius=14,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-            fg_color=M3_PRIMARY_CONTAINER,
-            text_color=M3_ON_PRIMARY_CONTAINER
-        )
-        self.btn_listen_a.pack(side="left", padx=2)
-
-        self.btn_listen_b = ctk.CTkButton(
-            btn_ab_row,
-            text="Höre B ▶",
-            command=lambda: self._play_slot("B"),
-            height=28,
-            width=75,
-            corner_radius=14,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-            fg_color=M3_SECONDARY_CONTAINER,
-            text_color=M3_ON_SECONDARY_CONTAINER
-        )
-        self.btn_listen_b.pack(side="left", padx=2)
-
-        # Slot B Card
-        self.slot_b_card = ctk.CTkFrame(ab_slots_row, fg_color=M3_SURFACE_CONTAINER, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
-        self.slot_b_card.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=2)
-
-        ctk.CTkLabel(self.slot_b_card, text="Slot B (Vergleichs-Take):", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=10, pady=(6, 2))
-        self.slot_b_lbl = ctk.CTkLabel(self.slot_b_card, text="Kein Take zugewiesen", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_PRIMARY_TEXT, anchor="w")
-        self.slot_b_lbl.pack(anchor="w", padx=10, pady=(0, 6))
-
-        # Bottom row inside ab_body_frame: Take History Table
-        hist_hdr_row = ctk.CTkFrame(self.ab_body_frame, fg_color="transparent")
-        hist_hdr_row.pack(fill="x", padx=14, pady=(4, 4))
-
-        self.history_count_lbl = ctk.CTkLabel(
-            hist_hdr_row,
-            text="Take-Historie der aktuellen Sitzung",
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-            text_color=COLOR_PRIMARY_TEXT
-        )
-        self.history_count_lbl.pack(side="left")
-
-        clear_hist_btn = ctk.CTkButton(
-            hist_hdr_row,
-            text="Historie leeren",
-            command=self._clear_ab_history,
-            height=24,
-            corner_radius=12,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
-            fg_color="transparent",
-            hover_color=M3_ERROR_HOVER,
-            text_color=M3_ERROR,
-            border_width=1,
-            border_color=M3_ERROR_CONTAINER
-        )
-        clear_hist_btn.pack(side="right")
-
-        self.ab_history_scroll = ctk.CTkScrollableFrame(
-            self.ab_body_frame,
-            height=125,
-            fg_color=M3_SURFACE_CONTAINER,
-            corner_radius=10
-        )
-        self.ab_history_scroll.pack(fill="x", padx=14, pady=(0, 10))
-
         # ------------------ 7. Permanent Audio Player & Export Card (Bottom) ------------------
         player_card = ctk.CTkFrame(
             main_content,
@@ -5393,9 +5776,17 @@ class GeminiTTSApp(ctk.CTk):
         else:
             self.lexicon_dialog = LexiconDialog(self)
 
+    def _open_history_dialog(self):
+        """Opens or focuses the dedicated Take History Dialog."""
+        if self.history_dialog and self.history_dialog.winfo_exists():
+            self.history_dialog.lift()
+            self.history_dialog.focus_force()
+        else:
+            self.history_dialog = HistoryDialog(self)
+
     def _open_subtitle_studio_dialog(self):
         """Opens or focuses the dedicated Subtitle Studio & Video Sync Dialog."""
-        current_audio = self.current_converted_file or self.current_generated_wav
+        current_audio = self.current_generated_wav or self.current_converted_file
         current_text = ""
         if self.current_mode == "single" and hasattr(self, "text_input"):
             current_text = self.text_input.get("0.0", "end").strip()
@@ -5432,138 +5823,307 @@ class GeminiTTSApp(ctk.CTk):
             self.ducking_music_label_var.set(self.ducking_music_path.name)
             self.ducking_enabled_var.set(True)
 
-    # ------------------ A/B Comparison Lab & History Controls ------------------
+    # ------------------ A/B Comparison Lab (Optional, Single-Text Mode Only) ------------------
 
     def _toggle_ab_panel(self):
-        """Toggle collapsible A/B Comparison & History accordion."""
+        """Toggle collapsible Smart A/B Comparison accordion."""
         if self.is_ab_collapsed:
             self.ab_body_frame.pack(fill="x", pady=(4, 6))
-            self.ab_toggle_btn.configure(text="⚖️ A/B-Vergleich & Take-Verlauf (Optional)  ▴")
+            self.ab_toggle_btn.configure(text="⚖️ A/B-Stimmenvergleich (Optional)  ▴")
             self.is_ab_collapsed = False
-            self._refresh_ab_ui()
+            self._update_ab_status_labels()
         else:
             self.ab_body_frame.pack_forget()
-            self.ab_toggle_btn.configure(text="⚖️ A/B-Vergleich & Take-Verlauf (Optional)  ▾")
+            self.ab_toggle_btn.configure(text="⚖️ A/B-Stimmenvergleich (Optional)  ▾")
             self.is_ab_collapsed = True
 
+    def _on_ab_voice_changed(self, variant: str, new_voice: str):
+        """Callback when user chooses a voice in Variant A or Variant B dropdown."""
+        if variant == "A":
+            self.ab_voice_a_var.set(new_voice)
+        else:
+            self.ab_voice_b_var.set(new_voice)
+        self._update_ab_status_labels()
+
+    def _update_ab_status_labels(self):
+        """Intelligently updates status badges and CTA button text based on cached takes."""
+        if not hasattr(self, "btn_ab_generate") or not hasattr(self, "text_input"):
+            return
+
+        current_text = self.text_input.get("0.0", "end").strip()
+        voice_a_choice = self.ab_voice_a_var.get()
+        voice_b_choice = self.ab_voice_b_var.get()
+
+        voice_a_id = extract_voice_id_from_choice(voice_a_choice)
+        voice_b_id = extract_voice_id_from_choice(voice_b_choice)
+
+        has_a = False
+        has_b = False
+        dur_a = 0.0
+        dur_b = 0.0
+
+        # Check if main current_generated_wav matches Variant A
+        if self.current_generated_wav and Path(self.current_generated_wav).exists():
+            main_voice_id = self._get_selected_voice_id()
+            if main_voice_id == voice_a_id and current_text:
+                has_a = True
+                dur_a = self.player.get_duration() or 0.0
+                if not self.ab_cached_a or self.ab_cached_a.get("text") != current_text:
+                    self.ab_cached_a = {
+                        "text": current_text,
+                        "voice": voice_a_id,
+                        "voice_label": voice_a_choice,
+                        "wav": self.current_generated_wav,
+                        "converted": self.current_converted_file,
+                        "duration": dur_a,
+                    }
+
+        # Check ab_cached_a
+        if self.ab_cached_a and self.ab_cached_a.get("text") == current_text and self.ab_cached_a.get("voice") == voice_a_id:
+            if self.ab_cached_a.get("wav") and Path(self.ab_cached_a["wav"]).exists():
+                has_a = True
+                dur_a = self.ab_cached_a.get("duration", 0.0)
+
+        # Check ab_cached_b
+        if self.ab_cached_b and self.ab_cached_b.get("text") == current_text and self.ab_cached_b.get("voice") == voice_b_id:
+            if self.ab_cached_b.get("wav") and Path(self.ab_cached_b["wav"]).exists():
+                has_b = True
+                dur_b = self.ab_cached_b.get("duration", 0.0)
+
+        # Update Badge A
+        if has_a:
+            self.ab_status_a_lbl.configure(text=f"Bereits generiert ({dur_a:.1f}s)", text_color="#10B981")
+            self.ab_card_a_title.configure(text=f"Variante A: {voice_a_choice.split(' (')[0]}")
+            self.ab_card_a_dur.configure(text=f"Dauer: {dur_a:.1f}s | Bereit zum Anhören")
+            self.btn_listen_a.configure(state="normal")
+            self.btn_adopt_a.configure(state="normal")
+        else:
+            self.ab_status_a_lbl.configure(text="Noch nicht generiert", text_color=COLOR_MUTED_TEXT)
+            self.ab_card_a_title.configure(text=f"Variante A: {voice_a_choice.split(' (')[0]}")
+            self.ab_card_a_dur.configure(text="Keine Aufnahme vorhanden")
+            self.btn_listen_a.configure(state="disabled")
+            self.btn_adopt_a.configure(state="disabled")
+
+        # Update Badge B
+        if has_b:
+            self.ab_status_b_lbl.configure(text=f"Bereits generiert ({dur_b:.1f}s)", text_color="#10B981")
+            self.ab_card_b_title.configure(text=f"Variante B: {voice_b_choice.split(' (')[0]}")
+            self.ab_card_b_dur.configure(text=f"Dauer: {dur_b:.1f}s | Bereit zum Anhören")
+            self.btn_listen_b.configure(state="normal")
+            self.btn_adopt_b.configure(state="normal")
+        else:
+            self.ab_status_b_lbl.configure(text="Wartet auf Generierung", text_color=COLOR_MUTED_TEXT)
+            self.ab_card_b_title.configure(text=f"Variante B: {voice_b_choice.split(' (')[0]}")
+            self.ab_card_b_dur.configure(text="Keine Aufnahme vorhanden")
+            self.btn_listen_b.configure(state="disabled")
+            self.btn_adopt_b.configure(state="disabled")
+
+        # Update Smart CTA Text
+        if has_a and not has_b:
+            self.btn_ab_generate.configure(text="✨ Nur noch Variante B generieren")
+        elif not has_a and has_b:
+            self.btn_ab_generate.configure(text="✨ Nur noch Variante A generieren")
+        elif has_a and has_b:
+            self.btn_ab_generate.configure(text="🔄 Beide Varianten erneut generieren")
+        else:
+            self.btn_ab_generate.configure(text="✨ Beide Varianten generieren (A & B)")
+
+    def _start_ab_generation(self):
+        """Starts A/B generation, reusing already generated variants if text & voice match."""
+        if self.is_generating:
+            return
+
+        text = self.text_input.get("0.0", "end").strip()
+        if not text:
+            messagebox.showwarning("Hinweis", "Bitte gib einen Text für den A/B-Vergleich ein.")
+            return
+
+        if not get_api_key():
+            self._open_api_key_dialog()
+            return
+
+        voice_a_label = self.ab_voice_a_var.get()
+        voice_b_label = self.ab_voice_b_var.get()
+        voice_a_id = extract_voice_id_from_choice(voice_a_label)
+        voice_b_id = extract_voice_id_from_choice(voice_b_label)
+
+        if voice_a_id == voice_b_id:
+            messagebox.showinfo("Hinweis", "Bitte wähle zwei unterschiedliche Stimmen für den Vergleich aus.")
+            return
+
+        # Determine what needs generation
+        needs_a = True
+        needs_b = True
+
+        if self.ab_cached_a and self.ab_cached_a.get("text") == text and self.ab_cached_a.get("voice") == voice_a_id:
+            if self.ab_cached_a.get("wav") and Path(self.ab_cached_a["wav"]).exists():
+                needs_a = False
+        elif self.current_generated_wav and Path(self.current_generated_wav).exists():
+            if self._get_selected_voice_id() == voice_a_id:
+                needs_a = False
+                self.ab_cached_a = {
+                    "text": text,
+                    "voice": voice_a_id,
+                    "voice_label": voice_a_label,
+                    "wav": self.current_generated_wav,
+                    "converted": self.current_converted_file,
+                    "duration": self.player.get_duration() or 0.0
+                }
+
+        if self.ab_cached_b and self.ab_cached_b.get("text") == text and self.ab_cached_b.get("voice") == voice_b_id:
+            if self.ab_cached_b.get("wav") and Path(self.ab_cached_b["wav"]).exists():
+                needs_b = False
+
+        if not needs_a and not needs_b:
+            # Force regeneration if both were already cached and user clicked regenerate
+            needs_a = True
+            needs_b = True
+
+        self.is_generating = True
+        self.btn_ab_generate.configure(state="disabled", text="Generiere...")
+        self.ab_gen_status_lbl.configure(text="Initialisiere...", text_color="#38BDF8")
+
+        thread = threading.Thread(
+            target=self._run_ab_generation,
+            args=(text, voice_a_id, voice_a_label, voice_b_id, voice_b_label, needs_a, needs_b),
+            daemon=True
+        )
+        thread.start()
+
+    def _run_ab_generation(self, text: str, voice_a_id: str, voice_a_label: str, voice_b_id: str, voice_b_label: str, needs_a: bool, needs_b: bool):
+        try:
+            model_id = self._get_selected_model_id()
+            system_prompt = self._get_current_system_prompt()
+            settings = self._get_current_encoding_settings()
+            single_out_dir = get_output_dir()
+            single_out_dir.mkdir(parents=True, exist_ok=True)
+
+            if needs_a:
+                self.after(0, lambda: self.ab_gen_status_lbl.configure(text=f"Generiere Variante A ({voice_a_id})...", text_color="#38BDF8"))
+                wav_a = self.tts_service.generate_speech(
+                    text=text,
+                    voice_name=voice_a_id,
+                    model=model_id,
+                    language="auto",
+                    system_prompt=system_prompt
+                )
+                out_a = single_out_dir / f"ab_variant_A_{int(time.time())}{settings['extension']}"
+                conv_a = convert_audio(
+                    input_file=wav_a,
+                    output_file=out_a,
+                    codec=settings["codec"],
+                    channels=settings["channels"],
+                    sample_rate=settings["sample_rate"],
+                    bitrate=settings["bitrate"],
+                    faststart=settings["faststart"]
+                )
+                dur_a = self.player._calculate_duration(Path(wav_a))
+                self.ab_cached_a = {
+                    "text": text,
+                    "voice": voice_a_id,
+                    "voice_label": voice_a_label,
+                    "wav": Path(wav_a),
+                    "converted": Path(conv_a),
+                    "duration": dur_a
+                }
+                log_generation(conv_a, voice_a_id, model_id, text, system_prompt, dur_a)
+
+            if needs_b:
+                self.after(0, lambda: self.ab_gen_status_lbl.configure(text=f"Generiere Variante B ({voice_b_id})...", text_color="#38BDF8"))
+                wav_b = self.tts_service.generate_speech(
+                    text=text,
+                    voice_name=voice_b_id,
+                    model=model_id,
+                    language="auto",
+                    system_prompt=system_prompt
+                )
+                out_b = single_out_dir / f"ab_variant_B_{int(time.time())}{settings['extension']}"
+                conv_b = convert_audio(
+                    input_file=wav_b,
+                    output_file=out_b,
+                    codec=settings["codec"],
+                    channels=settings["channels"],
+                    sample_rate=settings["sample_rate"],
+                    bitrate=settings["bitrate"],
+                    faststart=settings["faststart"]
+                )
+                dur_b = self.player._calculate_duration(Path(wav_b))
+                self.ab_cached_b = {
+                    "text": text,
+                    "voice": voice_b_id,
+                    "voice_label": voice_b_label,
+                    "wav": Path(wav_b),
+                    "converted": Path(conv_b),
+                    "duration": dur_b
+                }
+                log_generation(conv_b, voice_b_id, model_id, text, system_prompt, dur_b)
+
+            self.after(0, self._on_ab_generation_success)
+        except Exception as e:
+            self.after(0, self._on_ab_generation_error, str(e))
+
+    def _on_ab_generation_success(self):
+        self.is_generating = False
+        self.btn_ab_generate.configure(state="normal")
+        self.ab_gen_status_lbl.configure(text="Beide Varianten bereit zum Vergleich!", text_color="#10B981")
+        self._update_ab_status_labels()
+        self._refresh_ab_ui()
+
+    def _on_ab_generation_error(self, err_msg: str):
+        self.is_generating = False
+        self.btn_ab_generate.configure(state="normal")
+        self.ab_gen_status_lbl.configure(text="Fehler bei der Generierung.", text_color=M3_ERROR)
+        self._update_ab_status_labels()
+        messagebox.showerror("Fehler beim A/B-Vergleich", f"Die Generierung ist fehlgeschlagen:\n{err_msg}")
+
+    def _play_ab_variant(self, variant: str):
+        """Preview playback of Variant A or B."""
+        cached = self.ab_cached_a if variant == "A" else self.ab_cached_b
+        if not cached or not cached.get("wav") or not Path(cached["wav"]).exists():
+            messagebox.showwarning("Hinweis", f"Variante {variant} ist noch nicht generiert.")
+            return
+
+        wav_p = Path(cached["wav"])
+        conv_p = Path(cached.get("converted", wav_p))
+        self.current_generated_wav = wav_p
+        self.current_converted_file = conv_p
+        self.player.load(wav_p)
+        if hasattr(self, "waveform_view"):
+            self.waveform_view.load_audio(wav_p)
+        self._toggle_playback()
+
+    def _adopt_ab_variant(self, variant: str):
+        """Adopts chosen variant as the main recording and updates main player and voice dropdown."""
+        cached = self.ab_cached_a if variant == "A" else self.ab_cached_b
+        if not cached or not cached.get("wav") or not Path(cached["wav"]).exists():
+            messagebox.showwarning("Hinweis", f"Variante {variant} ist noch nicht generiert.")
+            return
+
+        wav_p = Path(cached["wav"])
+        conv_p = Path(cached.get("converted", wav_p))
+        voice_lbl = cached.get("voice_label", "")
+
+        self.current_generated_wav = wav_p
+        self.current_converted_file = conv_p
+        self.player.load(wav_p)
+        if hasattr(self, "waveform_view"):
+            self.waveform_view.load_audio(wav_p)
+        self._update_player_state_ui()
+
+        if voice_lbl:
+            self.voice_var.set(voice_lbl)
+
+        self.status_lbl.configure(
+            text=f"✓ Variante {variant} ({cached.get('voice', '')}) als Hauptaufnahme gewählt!",
+            text_color="#10B981"
+        )
+        messagebox.showinfo("Hauptaufnahme gewählt", f"Variante {variant} ({cached.get('voice', '')}) wurde erfolgreich als Hauptaufnahme übernommen.")
+
     def _refresh_ab_ui(self):
-        """Refreshes Slot A/B cards and History list table."""
-        if not hasattr(self, "ab_history_scroll"):
-            return
-
-        slots = get_ab_slots()
-        take_a = slots.get("A")
-        take_b = slots.get("B")
-
-        if take_a:
-            self.slot_a_lbl.configure(text=f"{take_a.get('voice', 'Stimme')} ({take_a.get('duration', 0):.1f}s)\n'{take_a.get('snippet', '')}'")
-        else:
-            self.slot_a_lbl.configure(text="Kein Take in Slot A zugewiesen")
-
-        if take_b:
-            self.slot_b_lbl.configure(text=f"{take_b.get('voice', 'Stimme')} ({take_b.get('duration', 0):.1f}s)\n'{take_b.get('snippet', '')}'")
-        else:
-            self.slot_b_lbl.configure(text="Kein Take in Slot B zugewiesen")
-
-        for widget in self.ab_history_scroll.winfo_children():
-            widget.destroy()
-
-        history = load_history()
-        self.history_count_lbl.configure(text=f"Take-Historie der aktuellen Sitzung ({len(history)} Takes)")
-
-        if not history:
-            ctk.CTkLabel(
-                self.ab_history_scroll,
-                text="Noch keine Takes generiert. Generierte Audios werden automatisch hier erfasst.",
-                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
-                text_color=COLOR_MUTED_TEXT
-            ).pack(pady=14)
-            return
-
-        for item in history:
-            row = ctk.CTkFrame(self.ab_history_scroll, fg_color=M3_SURFACE, corner_radius=8, border_width=1, border_color=M3_OUTLINE_VARIANT)
-            row.pack(fill="x", pady=2, padx=2)
-
-            # Timestamp & Voice
-            ctk.CTkLabel(row, text=item.get("timestamp", ""), width=60, font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
-            ctk.CTkLabel(row, text=item.get("voice", ""), width=110, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=M3_PRIMARY).pack(side="left", padx=4)
-            ctk.CTkLabel(row, text=f"{item.get('duration', 0):.1f}s", width=45, font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
-            ctk.CTkLabel(row, text=item.get("snippet", ""), font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_PRIMARY_TEXT, anchor="w").pack(side="left", fill="x", expand=True, padx=6)
-
-            # Actions
-            audio_p = Path(item.get("audio_path", ""))
-            btn_play = ctk.CTkButton(
-                row,
-                text="▶",
-                command=lambda p=audio_p: self._play_history_audio(p),
-                width=28,
-                height=24,
-                corner_radius=12,
-                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
-                fg_color=M3_PRIMARY_CONTAINER,
-                text_color=M3_ON_PRIMARY_CONTAINER
-            )
-            btn_play.pack(side="left", padx=2)
-
-            btn_set_a = ctk.CTkButton(
-                row,
-                text="Als A",
-                command=lambda t_id=item["id"]: self._set_slot_a(t_id),
-                width=42,
-                height=24,
-                corner_radius=12,
-                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
-                fg_color=M3_SURFACE_CONTAINER,
-                text_color=M3_PRIMARY,
-                border_width=1,
-                border_color=M3_OUTLINE
-            )
-            btn_set_a.pack(side="left", padx=2)
-
-            btn_set_b = ctk.CTkButton(
-                row,
-                text="Als B",
-                command=lambda t_id=item["id"]: self._set_slot_b(t_id),
-                width=42,
-                height=24,
-                corner_radius=12,
-                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
-                fg_color=M3_SURFACE_CONTAINER,
-                text_color=M3_PRIMARY,
-                border_width=1,
-                border_color=M3_OUTLINE
-            )
-            btn_set_b.pack(side="left", padx=2)
-
-    def _play_history_audio(self, audio_p: Path):
-        if audio_p and audio_p.exists():
-            self.player.load(audio_p)
-            self.current_converted_file = audio_p
-            if hasattr(self, "waveform_view"):
-                self.waveform_view.load_audio(audio_p)
-            self._toggle_playback()
-
-    def _set_slot_a(self, take_id: str):
-        set_ab_slot("A", take_id)
-        self._refresh_ab_ui()
-
-    def _set_slot_b(self, take_id: str):
-        set_ab_slot("B", take_id)
-        self._refresh_ab_ui()
-
-    def _play_slot(self, slot: str):
-        slots = get_ab_slots()
-        take = slots.get(slot.upper())
-        if take:
-            p = Path(take.get("audio_path", ""))
-            if p.exists():
-                self.player.load(p)
-                self.current_converted_file = p
-                if hasattr(self, "waveform_view"):
-                    self.waveform_view.load_audio(p)
-                self._toggle_playback()
-            else:
-                messagebox.showwarning("Hinweis", f"Datei für Slot {slot} nicht mehr vorhanden.")
+        """Refreshes A/B comparison status and open HistoryDialog if present."""
+        self._update_ab_status_labels()
+        if hasattr(self, "history_dialog") and self.history_dialog and self.history_dialog.winfo_exists():
+            self.history_dialog._refresh_history_list()
 
     def _clear_ab_history(self):
         if messagebox.askyesno("Bestätigung", "Möchtest du die Take-Historie leeren?"):
@@ -5579,14 +6139,28 @@ class GeminiTTSApp(ctk.CTk):
             self._on_script_text_changed()
 
     def _on_script_text_changed(self):
-        self._refresh_detected_speakers()
+        if hasattr(self, "_script_debounce_timer") and self._script_debounce_timer is not None:
+            try:
+                self.after_cancel(self._script_debounce_timer)
+            except Exception:
+                pass
+        self._script_debounce_timer = self.after(350, self._debounce_refresh_speakers)
 
-    def _refresh_detected_speakers(self):
+    def _debounce_refresh_speakers(self):
+        self._script_debounce_timer = None
+        self._refresh_detected_speakers(debounced=True)
+
+    def _refresh_detected_speakers(self, debounced: bool = False):
         if not hasattr(self, "script_input") or not hasattr(self, "cast_speakers_container"):
             return
 
         text = self.script_input.get("0.0", "end")
         speakers = extract_speakers(text)
+
+        # Performance optimization: skip rebuild if speaker list is unchanged
+        if debounced and getattr(self, "_last_detected_speakers", None) == speakers:
+            return
+        self._last_detected_speakers = speakers
 
         for widget in self.cast_speakers_container.winfo_children():
             widget.destroy()
@@ -5734,12 +6308,15 @@ class GeminiTTSApp(ctk.CTk):
                 bitrate=settings["bitrate"],
                 faststart=settings["faststart"]
             )
+            self.current_generated_wav = final_wav
             self.current_converted_file = converted_path
 
             duration = time.time() - start_time
             file_size_kb = converted_path.stat().st_size / 1024.0
 
-            self.player.load(converted_path)
+            self.player.load(final_wav)
+            if hasattr(self, "waveform_view"):
+                self.waveform_view.load_audio(final_wav)
 
             # Log into take history
             try:
@@ -6379,6 +6956,7 @@ class GeminiTTSApp(ctk.CTk):
         chars = len(content)
         words = len(content.split()) if chars > 0 else 0
         self.char_counter_lbl.configure(text=f"{chars:,} Zeichen | {words:,} Wörter")
+        self._update_ab_status_labels()
 
     def _insert_tag(self, tag: str):
         self.text_input.insert("insert", f"{tag} ")
@@ -6441,6 +7019,9 @@ class GeminiTTSApp(ctk.CTk):
                     self.voice_desc_lbl.configure(text=v["desc"])
                 break
         self._update_header_status_pills()
+        if hasattr(self, "ab_voice_a_var"):
+            self.ab_voice_a_var.set(choice)
+        self._update_ab_status_labels()
 
     def _on_voice_category_changed(self, category: str):
         all_voices = get_all_voices()
@@ -6645,12 +7226,15 @@ class GeminiTTSApp(ctk.CTk):
                 bitrate=settings["bitrate"],
                 faststart=settings["faststart"]
             )
+            self.current_generated_wav = final_wav_path
             self.current_converted_file = converted_path
 
             duration = time.time() - start_time
             file_size_kb = converted_path.stat().st_size / 1024.0
 
-            self.player.load(converted_path)
+            self.player.load(final_wav_path)
+            if hasattr(self, "waveform_view"):
+                self.waveform_view.load_audio(final_wav_path)
 
             # Log into take history
             try:
@@ -6700,6 +7284,31 @@ class GeminiTTSApp(ctk.CTk):
                 self.waveform_view.load_audio(self.player._playback_file)
 
         self._toggle_playback()
+
+    def _enable_player_controls(self):
+        """Enables player buttons and resets playhead display."""
+        if hasattr(self, "play_btn"):
+            self.play_btn.configure(
+                state="normal",
+                fg_color=M3_PRIMARY,
+                text_color=("#FFFFFF", "#00201C"),
+                border_width=0,
+                text="Abspielen",
+                image=get_ui_icon("play", "white", 13)
+            )
+        if hasattr(self, "stop_btn"):
+            self.stop_btn.configure(state="normal")
+        if hasattr(self, "export_btn"):
+            self.export_btn.configure(state="normal")
+        if hasattr(self, "timeline_slider"):
+            self.timeline_slider.configure(state="normal")
+            self.timeline_slider.set(0.0)
+        if hasattr(self, "time_lbl") and hasattr(self, "player"):
+            dur = self.player.get_duration() or 0.0
+            self.time_lbl.configure(text=f"00:00 / {self._format_time(dur)}")
+
+    def _update_player_state_ui(self):
+        self._enable_player_controls()
 
     def _on_generation_error(self, err_msg: str):
         self.is_generating = False

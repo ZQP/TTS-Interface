@@ -5,7 +5,7 @@
 ; =====================================================================
 
 #define MyAppName "Gemini TTS Studio"
-#define MyAppVersion "3.0.2"
+#define MyAppVersion "3.1.0"
 #define MyAppPublisher "ZQP"
 #define MyAppURL "https://github.com/ZQP/TTS-Interface"
 #define MyAppExeName "GeminiTTSStudio.exe"

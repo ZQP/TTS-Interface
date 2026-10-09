@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag (z. B. v3.0.2)'
+        description: 'Release Tag (z. B. v3.1.0)'
         required: false
-        default: 'v3.0.2'
+        default: 'v3.1.0'
 
 permissions:
   contents: write
@@ -39,6 +39,7 @@ jobs:
         run: |
           python -X utf8 test_batch.py
           python -X utf8 test_new_features.py
+          python -X utf8 test_ab_workflow.py
 
       - name: Build Standalone Windows Executable
         run: |

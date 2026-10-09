@@ -58,15 +58,16 @@ class AudioPlayer:
         if ext in [".mp4", ".m4a", ".aac"]:
             temp_preview_wav = TEMP_DIR / f"preview_{src_path.stem}.wav"
             try:
-                convert_audio(
-                    input_file=src_path,
-                    output_file=temp_preview_wav,
-                    codec="pcm_s16le",
-                    channels=2,
-                    sample_rate=44100,
-                    bitrate=None,
-                    faststart=False
-                )
+                if not temp_preview_wav.exists() or temp_preview_wav.stat().st_size == 0:
+                    convert_audio(
+                        input_file=src_path,
+                        output_file=temp_preview_wav,
+                        codec="pcm_s16le",
+                        channels=2,
+                        sample_rate=44100,
+                        bitrate=None,
+                        faststart=False
+                    )
                 self._playback_file = temp_preview_wav
             except Exception:
                 self._playback_file = src_path

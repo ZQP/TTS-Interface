@@ -213,6 +213,15 @@ def _draw_compare(color: Tuple[int, int, int, int], size: int = 64) -> Image.Ima
     return img
 
 
+def _draw_history(color: Tuple[int, int, int, int], size: int = 64) -> Image.Image:
+    img, draw = _create_canvas(size)
+    cx, cy = size / 2, size / 2
+    draw.ellipse((cx - 18, cy - 18, cx + 18, cy + 18), outline=color, width=3)
+    draw.line((cx, cy, cx, cy - 10), fill=color, width=3)
+    draw.line((cx, cy, cx + 8, cy), fill=color, width=3)
+    return img
+
+
 def get_ui_icon(name: str, variant: str = "theme", size: int = 16) -> ctk.CTkImage:
     """
     Returns a cached CTkImage for the requested icon name.
@@ -251,6 +260,8 @@ def get_ui_icon(name: str, variant: str = "theme", size: int = 16) -> ctk.CTkIma
         "subtitles": _draw_subtitles,
         "srt": _draw_subtitles,
         "compare": _draw_compare,
+        "history": _draw_history,
+        "clock": _draw_history,
     }
 
     fn = draw_map.get(name, _draw_gear)

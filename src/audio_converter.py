@@ -5,6 +5,7 @@ Audio converter module using FFmpeg
 import subprocess
 import shutil
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -80,14 +81,25 @@ def convert_audio(
     if faststart and ext in [".mp4", ".m4a", ".mov"]:
         cmd.extend(["-movflags", "+faststart"])
     
+    # Add output file destination
     cmd.append(output_path.as_posix())
-    
+
+    # Configure headless process creation (suppresses console/cmd window popups on Windows)
+    startupinfo = None
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = subprocess.CREATE_NO_WINDOW
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
     # Run FFmpeg conversion
     process = subprocess.run(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
+        startupinfo=startupinfo,
+        creationflags=creationflags
     )
     
     if process.returncode != 0:
@@ -103,7 +115,9 @@ def convert_audio(
                     fallback_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=True,
+                    startupinfo=startupinfo,
+                    creationflags=creationflags
                 )
                 if fb_proc.returncode == 0 and fallback_file.exists() and fallback_file.stat().st_size > 0:
                     try:

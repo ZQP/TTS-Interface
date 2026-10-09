@@ -98,7 +98,13 @@ class UpdateService:
     def __init__(self, repo: str = GITHUB_REPO, current_version: str = APP_VERSION):
         self.repo = repo
         self.current_version = current_version
-        self.github_token = self._resolve_github_token()
+        self._github_token: Optional[str] = None
+
+    @property
+    def github_token(self) -> str:
+        if self._github_token is None:
+            self._github_token = self._resolve_github_token()
+        return self._github_token
 
     def _resolve_github_token(self) -> str:
         token = os.getenv("GITHUB_TOKEN", os.getenv("GH_TOKEN", ""))
@@ -108,7 +114,8 @@ class UpdateService:
         try:
             import shutil
             if shutil.which("gh"):
-                out = subprocess.check_output(["gh", "auth", "token"], timeout=3, stderr=subprocess.DEVNULL)
+                cflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+                out = subprocess.check_output(["gh", "auth", "token"], timeout=3, stderr=subprocess.DEVNULL, creationflags=cflags)
                 t = out.decode("utf-8").strip()
                 if t and t.startswith("gh"):
                     return t
