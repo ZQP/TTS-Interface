@@ -129,6 +129,7 @@ def test_script_processor():
 
 def test_history_and_ab():
     print("=== 4. Testing History & A/B Comparison Service ===")
+    clear_history()
     fake_audio = TEMP_TEST_DIR / "dummy_take.wav"
     fake_audio.write_text("RIFFfake", encoding="utf-8")
 

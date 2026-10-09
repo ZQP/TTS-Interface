@@ -6,6 +6,7 @@ re-listening, and variant evaluation.
 
 import json
 import time
+import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -77,7 +78,7 @@ def log_generation(
 
     now = time.strftime("%H:%M:%S")
     now_date = time.strftime("%Y-%m-%d %H:%M")
-    take_id = f"take-{int(time.time()*1000)}"
+    take_id = f"take-{int(time.time()*1000)}-{uuid.uuid4().hex[:6]}"
 
     snippet = (text or "").strip()
     if len(snippet) > 75:
