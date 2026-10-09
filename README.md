@@ -17,9 +17,14 @@ Unterstützt native **Audio-Tags / Regieanweisungen** (z. B. `[lachen]`, `[flüs
 
 ---
 
-## Features
+## Features (v3.0.0)
 
 - 🎙️ **Gemini 3.8 TTS Engine**: Volle Unterstützung für `gemini-3.8-flash-tts` (Studio-Qualität & Flaggschiff) und `gemini-3.8-flash-lite-tts` (High-Speed & Massenverarbeitung).
+- 🎭 **Multi-Sprecher & Dialog-Skript (Neu in v3.0.0)**: Vollwertiger Hörspiel- & Skriptmodus mit automatischer Sprechererkennung (`[Erzähler]: ... [Anna]: ... [Ben]: ...`), individueller Stimmenzuweisung pro Rolle, konfigurierbaren Sprechpausen und nahtloser Sequenz-Synthese.
+- 📖 **Phonetisches Wörterbuch & Aussprache-Lexikon (Neu in v3.0.0)**: Benutzerdefinierte Ausspracheregeln (`custom_lexicon.json`), Akronym-Übersetzung (z. B. `SQL` → `Es-Kju-Ell`), Regex-Muster und sofortige Audio-Probehörfunktion.
+- 🎵 **Sidechain Audio-Ducking & Hintergrundmusik (Neu in v3.0.0)**: Nahtloses Einmischen von Hintergrundmusik (`.mp3`, `.wav`) mit automatischer Lautstärkeabsenkung während des Sprechens (-14 dB Ducking) und sanftem Fade-Out am Sprach-Ende.
+- 📝 **Frame-genaues Untertitel-Studio (Neu in v3.0.0)**: Dedizierte Subtitle-Suite mit 16:9 Cinema-Monitor, Live-Overlay, CPS-Lesbarkeitsprüfung (optimal / gut / zu schnell), Inline-Cue-Editor und 1-Klick-Export nach `.SRT` und `.VTT`.
+- ⚖️ **Take-Historie & A/B-Vergleichs-Labor (Neu in v3.0.0)**: Automatische Erfassung aller Takes der Sitzung mit Slot-Zuweisung (Slot A & Slot B) und 1-Klick-Umschaltung für sofortigen Hörvergleich.
 - 🎭 **Expressive Regie-Cues & Audio-Tags**: 1-Klick-Toolbar für native Emotionen und non-verbale Geräusche: `<laughs>` (Lachen), `<sigh>` (Seufzen), `<gasp>` (Einatmen), `<throat-clearing>` (Räuspern), `|mhm|` (Zustimmung), `[whispering]` (Flüstern) und `[pause]`.
 - 👥 **Große Stimmenbibliothek (50+ Stimmen)**: Neben den beliebten Allroundern (*Erinome, Puck, Charon, Kore, Fenrir*) stehen native deutsche Rollen-Personas bereit (*Anwältin, Arzt, Wissenschaftler, Professorin, Lehrer, Moderatorin, Erzählerin, Kundenservice*).
 - 🔄 **Integrierter Auto-Updater**: Erkennt neue Releases auf GitHub automatisch beim Start und aktualisiert die App per 1-Klick nahtlos im laufenden Betrieb.
@@ -27,7 +32,7 @@ Unterstützt native **Audio-Tags / Regieanweisungen** (z. B. `[lachen]`, `[flüs
 - 🌐 **Sprachauswahl & Automatische Übersetzung**: 32 Weltsprachen mit automatischer Spracherkennung oder 1-Klick-Übersetzung.
 - 🎛️ **Optimierte Audio-Formate**:
   - Standard-Preset: **AAC-LC**, **Mono**, **64 kbit/s**, **44.100 Hz / 48.000 Hz**, Container: **MP4 / M4A** mit `+faststart` Streaming-Flag.
-  - Weitere Formate: MP3 (192k), verlustfreies WAV sowie freier Modus („Benutzerdefiniert“).
+  - Weitere Formate: MP3 (192k/320k), verlustfreies WAV & FLAC sowie freier Modus („Benutzerdefiniert“).
 - 🔊 **Integrierter Audio-Player mit Waveform & Scrubbing**: Flüssiges Spulen mit der Maus, Pause, Lautstärkeregelung.
 - 💾 **Export & Batch-Verarbeitung**: Konvertierung und Export einzelner Texte oder ganzer Dokumenten-Warteschlangen.
 - 📦 **Standalone Portable EXE**: Kann ohne Python-Installation direkt auf jedem Windows-Rechner ausgeführt werden.

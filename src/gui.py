@@ -55,6 +55,38 @@ from .document_parser import extract_text_from_file, split_into_chapters
 from .batch_processor import BatchProcessor, BatchItem
 from .translation_service import TranslationService
 from .updater import UpdateService, format_release_notes
+from .lexicon_service import (
+    load_lexicon,
+    save_lexicon,
+    add_lexicon_entry,
+    update_lexicon_entry,
+    delete_lexicon_entry,
+    apply_lexicon,
+    reset_lexicon_to_defaults,
+)
+from .subtitle_service import (
+    generate_subtitle_cues,
+    clean_subtitle_text,
+    cues_to_srt,
+    cues_to_vtt,
+    parse_srt,
+    calculate_cps,
+)
+from .audio_ducking import apply_audio_ducking
+from .script_processor import (
+    parse_script,
+    extract_speakers,
+    synthesize_dialogue_script,
+)
+from .history_service import (
+    load_history,
+    log_generation,
+    clear_history,
+    get_ab_slots,
+    set_ab_slot,
+    get_take_by_id,
+)
+
 
 
 ctk.set_appearance_mode("Light")
@@ -668,6 +700,1015 @@ class UpdateDialog(ctk.CTkToplevel):
         self.status_lbl.configure(text="Download erfolgreich! Starte Anwendung neu...", text_color="#10B981")
         self.progress_bar.set(1.0)
         self.after(800, lambda: self.update_service.apply_update_and_restart(downloaded_exe))
+
+
+class LexiconDialog(ctk.CTkToplevel):
+    """
+    Phonetic Lexicon & Pronunciation Dictionary Dialog.
+    Allows user to define custom phonetic replacements, acronym pronunciations,
+    and regex substitutions with instant preview and audio probe playback.
+    """
+
+    def __init__(self, parent: "GeminiTTSApp"):
+        super().__init__(parent)
+        self.parent_app = parent
+        self.tts_service = parent.tts_service
+        self.title("Gemini TTS Studio - Aussprache-Lexikon & Phonetisches Wörterbuch")
+        self.geometry("900x700")
+        self.minsize(820, 600)
+        apply_app_icon(self)
+
+        self.preview_player = AudioPlayer()
+        self.rules: List[Dict[str, Any]] = []
+        self.is_generating_probe = False
+
+        self._build_ui()
+        self._refresh_rules_list()
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.transient(parent)
+        self.grab_set()
+
+    def _on_close(self):
+        try:
+            self.preview_player.stop()
+        except Exception:
+            pass
+        if self.parent_app:
+            self.parent_app.lexicon_dialog = None
+        self.destroy()
+
+    def _build_ui(self):
+        container = ctk.CTkFrame(
+            self,
+            corner_radius=18,
+            fg_color=M3_SURFACE,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        container.pack(padx=16, pady=16, fill="both", expand=True)
+
+        # Header
+        header = ctk.CTkFrame(container, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(16, 12))
+
+        title_col = ctk.CTkFrame(header, fg_color="transparent")
+        title_col.pack(side="left")
+
+        dlg_title = ctk.CTkLabel(
+            title_col,
+            text="Aussprache-Lexikon & Phonetisches Wörterbuch",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        dlg_title.pack(anchor="w")
+
+        dlg_sub = ctk.CTkLabel(
+            title_col,
+            text="Definiere eigene Ausspracheregeln & Akronym-Korrekturen (z.B. SQL → Es-Kju-Ell, ChatGPT → Tschätt-Dschi-Pi-Ti).",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=COLOR_MUTED_TEXT
+        )
+        dlg_sub.pack(anchor="w")
+
+        close_btn = ctk.CTkButton(
+            header,
+            text="✕",
+            command=self._on_close,
+            width=32,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=COLOR_MUTED_TEXT
+        )
+        close_btn.pack(side="right")
+
+        reset_btn = ctk.CTkButton(
+            header,
+            text="Standard-Regeln laden",
+            command=self._reset_defaults,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1.5,
+            border_color=M3_OUTLINE
+        )
+        reset_btn.pack(side="right", padx=(0, 10))
+
+        # Main 2-Column Split
+        split_frame = ctk.CTkFrame(container, fg_color="transparent")
+        split_frame.pack(fill="both", expand=True, padx=20, pady=(0, 16))
+        split_frame.grid_columnconfigure(0, weight=3)
+        split_frame.grid_columnconfigure(1, weight=2)
+        split_frame.grid_rowconfigure(0, weight=1)
+
+        # Left Column: Rules Table / Cards
+        left_col = ctk.CTkFrame(
+            split_frame,
+            corner_radius=14,
+            fg_color=M3_SURFACE_CONTAINER,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
+        rules_header = ctk.CTkFrame(left_col, fg_color="transparent")
+        rules_header.pack(fill="x", padx=14, pady=(12, 6))
+
+        self.rules_count_lbl = ctk.CTkLabel(
+            rules_header,
+            text="Gespeicherte Aussprache-Regeln (0)",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.rules_count_lbl.pack(side="left")
+
+        self.rules_scroll = ctk.CTkScrollableFrame(
+            left_col,
+            fg_color="transparent",
+            corner_radius=8
+        )
+        self.rules_scroll.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        # Right Column: Add Form & Live Preview
+        right_col = ctk.CTkFrame(split_frame, fg_color="transparent")
+        right_col.grid(row=0, column=1, sticky="nsew")
+
+        # Form Card: Add Rule
+        form_card = ctk.CTkFrame(
+            right_col,
+            corner_radius=14,
+            fg_color=M3_SURFACE,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        form_card.pack(fill="x", pady=(0, 12))
+
+        form_title = ctk.CTkLabel(
+            form_card,
+            text="Neue Regel hinzufügen",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        form_title.pack(anchor="w", padx=14, pady=(12, 6))
+
+        # Term
+        ctk.CTkLabel(
+            form_card,
+            text="Suchbegriff / Wort / Akronym:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(anchor="w", padx=14, pady=(2, 2))
+
+        self.entry_term = ctk.CTkEntry(
+            form_card,
+            placeholder_text="z.B. SQL oder ChatGPT",
+            height=32,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            corner_radius=8
+        )
+        self.entry_term.pack(fill="x", padx=14, pady=(0, 8))
+
+        # Replacement
+        ctk.CTkLabel(
+            form_card,
+            text="Lautschrift / Ersetzung:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(anchor="w", padx=14, pady=(2, 2))
+
+        self.entry_replacement = ctk.CTkEntry(
+            form_card,
+            placeholder_text="z.B. Es-Kju-Ell oder Tschätt-Dschi-Pi-Ti",
+            height=32,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            corner_radius=8
+        )
+        self.entry_replacement.pack(fill="x", padx=14, pady=(0, 8))
+
+        # Type & Options Row
+        opts_row = ctk.CTkFrame(form_card, fg_color="transparent")
+        opts_row.pack(fill="x", padx=14, pady=(0, 8))
+
+        self.rule_type_menu = ctk.CTkOptionMenu(
+            opts_row,
+            values=["Akronym", "Eigenname", "Abkürzung", "Regex"],
+            width=110,
+            height=28,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold")
+        )
+        self.rule_type_menu.pack(side="left", padx=(0, 8))
+
+        self.rule_case_var = ctk.BooleanVar(value=False)
+        self.rule_case_cb = ctk.CTkCheckBox(
+            opts_row,
+            text="Case-sensitive",
+            variable=self.rule_case_var,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold")
+        )
+        self.rule_case_cb.pack(side="left")
+
+        self.add_rule_btn = ctk.CTkButton(
+            form_card,
+            text="Regel speichern",
+            image=get_ui_icon("plus", "white", 13),
+            compound="left",
+            command=self._add_rule,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color=M3_CTA,
+            hover_color=M3_CTA_HOVER,
+            text_color="#FFFFFF"
+        )
+        self.add_rule_btn.pack(fill="x", padx=14, pady=(4, 14))
+
+        # Preview & Test Probe Card
+        preview_card = ctk.CTkFrame(
+            right_col,
+            corner_radius=14,
+            fg_color=M3_SURFACE,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        preview_card.pack(fill="both", expand=True)
+
+        ctk.CTkLabel(
+            preview_card,
+            text="Echtzeit-Vorschau & Audio-Probe",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(anchor="w", padx=14, pady=(12, 6))
+
+        self.test_text_entry = ctk.CTkEntry(
+            preview_card,
+            placeholder_text="Test-Satz eingeben...",
+            height=34,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            corner_radius=8
+        )
+        self.test_text_entry.pack(fill="x", padx=14, pady=(0, 6))
+        self.test_text_entry.insert(0, "Wir nutzen SQL und ChatGPT für Dr. Müller.")
+        self.test_text_entry.bind("<KeyRelease>", self._update_test_preview)
+
+        # Output label box
+        out_box = ctk.CTkFrame(preview_card, fg_color=M3_SURFACE_CONTAINER, corner_radius=8)
+        out_box.pack(fill="x", padx=14, pady=(0, 10))
+
+        ctk.CTkLabel(
+            out_box,
+            text="Phonetisch transformierter Text:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(anchor="w", padx=10, pady=(6, 2))
+
+        self.test_output_lbl = ctk.CTkLabel(
+            out_box,
+            text="",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=M3_PRIMARY,
+            wraplength=280,
+            justify="left"
+        )
+        self.test_output_lbl.pack(anchor="w", padx=10, pady=(0, 8))
+
+        self.probe_btn = ctk.CTkButton(
+            preview_card,
+            text="▶ Audio-Probe hören",
+            command=self._play_test_probe,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color=M3_PRIMARY_CONTAINER,
+            hover_color=("#B6E4DA", "#00645A"),
+            text_color=M3_ON_PRIMARY_CONTAINER,
+            border_width=0
+        )
+        self.probe_btn.pack(fill="x", padx=14, pady=(0, 14))
+
+        self._update_test_preview()
+
+    def _refresh_rules_list(self):
+        for widget in self.rules_scroll.winfo_children():
+            widget.destroy()
+
+        self.rules = load_lexicon()
+        self.rules_count_lbl.configure(text=f"Gespeicherte Aussprache-Regeln ({len(self.rules)})")
+
+        if not self.rules:
+            ctk.CTkLabel(
+                self.rules_scroll,
+                text="Keine Regeln vorhanden. Klicke auf 'Standard-Regeln laden'.",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(pady=20)
+            return
+
+        for rule in self.rules:
+            row = ctk.CTkFrame(
+                self.rules_scroll,
+                fg_color=M3_SURFACE,
+                corner_radius=10,
+                border_width=1,
+                border_color=M3_OUTLINE_VARIANT
+            )
+            row.pack(fill="x", pady=4, padx=2)
+
+            # Active Checkbox
+            var = ctk.BooleanVar(value=rule.get("enabled", True))
+            cb = ctk.CTkCheckBox(
+                row,
+                text="",
+                width=24,
+                variable=var,
+                command=lambda r=rule, v=var: self._toggle_rule(r["id"], v.get())
+            )
+            cb.pack(side="left", padx=(8, 4), pady=6)
+
+            # Details
+            info_frame = ctk.CTkFrame(row, fg_color="transparent")
+            info_frame.pack(side="left", fill="x", expand=True, padx=4, pady=6)
+
+            title_row = ctk.CTkFrame(info_frame, fg_color="transparent")
+            title_row.pack(fill="x")
+
+            ctk.CTkLabel(
+                title_row,
+                text=rule.get("term", ""),
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+                text_color=COLOR_PRIMARY_TEXT
+            ).pack(side="left", padx=(0, 6))
+
+            ctk.CTkLabel(
+                title_row,
+                text="➔",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(side="left", padx=(0, 6))
+
+            ctk.CTkLabel(
+                title_row,
+                text=rule.get("replacement", ""),
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+                text_color=M3_PRIMARY
+            ).pack(side="left")
+
+            # Badges
+            badge_row = ctk.CTkFrame(info_frame, fg_color="transparent")
+            badge_row.pack(fill="x", pady=(2, 0))
+
+            t_badge = ctk.CTkLabel(
+                badge_row,
+                text=rule.get("type", "Regel").capitalize(),
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+                fg_color=M3_SURFACE_CONTAINER,
+                corner_radius=4,
+                padx=6,
+                pady=1
+            )
+            t_badge.pack(side="left", padx=(0, 4))
+
+            if rule.get("case_sensitive"):
+                cs_badge = ctk.CTkLabel(
+                    badge_row,
+                    text="Case-Sens.",
+                    font=ctk.CTkFont(family=FONT_FAMILY, size=9, weight="bold"),
+                    fg_color=M3_SURFACE_CONTAINER,
+                    corner_radius=4,
+                    padx=4,
+                    pady=1
+                )
+                cs_badge.pack(side="left", padx=(0, 4))
+
+            # Delete Button
+            del_btn = ctk.CTkButton(
+                row,
+                text="",
+                image=get_ui_icon("trash", "danger", 13),
+                command=lambda r_id=rule["id"]: self._delete_rule(r_id),
+                width=28,
+                height=28,
+                corner_radius=14,
+                fg_color="transparent",
+                hover_color=M3_ERROR_HOVER
+            )
+            del_btn.pack(side="right", padx=(4, 8), pady=6)
+
+    def _toggle_rule(self, rule_id: str, enabled: bool):
+        update_lexicon_entry(rule_id, enabled=enabled)
+        self._refresh_rules_list()
+        self._update_test_preview()
+
+    def _delete_rule(self, rule_id: str):
+        delete_lexicon_entry(rule_id)
+        self._refresh_rules_list()
+        self._update_test_preview()
+
+    def _add_rule(self):
+        term = self.entry_term.get().strip()
+        repl = self.entry_replacement.get().strip()
+        r_type = self.rule_type_menu.get().lower()
+        case_sens = self.rule_case_var.get()
+        is_regex = (r_type == "regex")
+
+        if not term or not repl:
+            messagebox.showwarning("Fehlende Eingabe", "Bitte gib sowohl einen Begriff als auch die Lautschrift-Ersetzung ein.")
+            return
+
+        add_lexicon_entry(
+            term=term,
+            replacement=repl,
+            rule_type=r_type,
+            case_sensitive=case_sens,
+            is_regex=is_regex,
+            enabled=True
+        )
+
+        self.entry_term.delete(0, "end")
+        self.entry_replacement.delete(0, "end")
+        self._refresh_rules_list()
+        self._update_test_preview()
+
+    def _reset_defaults(self):
+        if messagebox.askyesno("Bestätigung", "Möchtest du das Aussprache-Lexikon auf die Standard-Regeln zurücksetzen?"):
+            reset_lexicon_to_defaults()
+            self._refresh_rules_list()
+            self._update_test_preview()
+
+    def _update_test_preview(self, event=None):
+        text = self.test_text_entry.get()
+        res = apply_lexicon(text)
+        self.test_output_lbl.configure(text=res)
+
+    def _play_test_probe(self):
+        if self.is_generating_probe:
+            return
+
+        text_to_speak = self.test_output_lbl.cget("text")
+        if not text_to_speak:
+            return
+
+        self.is_generating_probe = True
+        self.probe_btn.configure(state="disabled", text="Generiere Probe...")
+
+        def run_probe():
+            try:
+                voice = self.parent_app._get_selected_voice_id() if hasattr(self.parent_app, "_get_selected_voice_id") else "Puck"
+                wav = self.tts_service.generate_speech(text=text_to_speak, voice_name=voice)
+                self.preview_player.load(wav)
+                self.preview_player.play()
+            except Exception as e:
+                print(f"Probe Fehler: {e}")
+            finally:
+                self.is_generating_probe = False
+                self.after(0, lambda: self.probe_btn.configure(state="normal", text="▶ Audio-Probe hören"))
+
+        threading.Thread(target=run_probe, daemon=True).start()
+
+
+class SubtitleStudioDialog(ctk.CTkToplevel):
+    """
+    Frame-accurate Subtitle Studio & Video Sync Dialog.
+    Visual 16:9 Cinema preview monitor with live subtitle overlay, cues table with CPS metrics,
+    and 1-click export to .SRT and .VTT.
+    """
+
+    def __init__(self, parent: "GeminiTTSApp", audio_path: Optional[Path] = None, script_text: str = ""):
+        super().__init__(parent)
+        self.parent_app = parent
+        self.audio_path = audio_path
+        self.script_text = script_text
+        self.title("Gemini TTS Studio - Untertitel-Studio (.SRT / .VTT)")
+        self.geometry("980x740")
+        self.minsize(880, 620)
+        apply_app_icon(self)
+
+        self.cues: List[Dict[str, Any]] = []
+        self.player = AudioPlayer()
+        self.audio_duration = 0.0
+
+        if self.audio_path and self.audio_path.exists():
+            try:
+                self.player.load(self.audio_path)
+                self.audio_duration = self.player.get_duration()
+            except Exception:
+                pass
+
+        self.is_scrubbing = False
+        self._build_ui()
+        self._load_or_generate_initial_cues()
+        self._setup_timer()
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.transient(parent)
+        self.grab_set()
+
+    def _on_close(self):
+        try:
+            self.player.stop()
+        except Exception:
+            pass
+        if self.parent_app:
+            self.parent_app.subtitle_dialog = None
+        self.destroy()
+
+    def _build_ui(self):
+        container = ctk.CTkFrame(
+            self,
+            corner_radius=18,
+            fg_color=M3_SURFACE,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        container.pack(padx=16, pady=16, fill="both", expand=True)
+
+        # Header
+        header = ctk.CTkFrame(container, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(16, 10))
+
+        title_col = ctk.CTkFrame(header, fg_color="transparent")
+        title_col.pack(side="left")
+
+        dlg_title = ctk.CTkLabel(
+            title_col,
+            text="Untertitel-Studio & Video-Synchronisation",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        dlg_title.pack(anchor="w")
+
+        dlg_sub = ctk.CTkLabel(
+            title_col,
+            text="Frame-genaue Untertitel (.SRT / .VTT), automatische Sprechtaktung & CPS-Lesbarkeitsprüfung.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=COLOR_MUTED_TEXT
+        )
+        dlg_sub.pack(anchor="w")
+
+        close_btn = ctk.CTkButton(
+            header,
+            text="✕",
+            command=self._on_close,
+            width=32,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=COLOR_MUTED_TEXT
+        )
+        close_btn.pack(side="right")
+
+        # Top 16:9 Cinema Monitor Preview
+        cinema_box = ctk.CTkFrame(
+            container,
+            height=160,
+            corner_radius=14,
+            fg_color=("#0A1210", "#060D0B"),
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        cinema_box.pack(fill="x", padx=20, pady=(0, 10))
+        cinema_box.pack_propagate(False)
+
+        # Center Subtitle Overlay
+        self.cinema_text_lbl = ctk.CTkLabel(
+            cinema_box,
+            text="[Kein Untertitel an aktueller Position]",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
+            text_color="#FFFFFF",
+            fg_color=("#1A2E2A", "#142421"),
+            corner_radius=8,
+            padx=14,
+            pady=6,
+            wraplength=600
+        )
+        self.cinema_text_lbl.pack(side="bottom", pady=16)
+
+        # Playback Controls Bar under Cinema Box
+        player_bar = ctk.CTkFrame(container, fg_color="transparent")
+        player_bar.pack(fill="x", padx=20, pady=(0, 10))
+
+        self.play_btn = ctk.CTkButton(
+            player_bar,
+            text="Abspielen",
+            image=get_ui_icon("play", "white", 13),
+            compound="left",
+            command=self._toggle_playback,
+            width=100,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_PRIMARY[0],
+            text_color="#FFFFFF"
+        )
+        self.play_btn.pack(side="left", padx=(0, 6))
+
+        self.stop_btn = ctk.CTkButton(
+            player_bar,
+            text="Stopp",
+            image=get_ui_icon("stop", "danger", 12),
+            compound="left",
+            command=self._stop_playback,
+            width=75,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_ERROR_HOVER,
+            text_color=M3_ERROR,
+            border_width=1,
+            border_color=M3_ERROR_CONTAINER
+        )
+        self.stop_btn.pack(side="left", padx=(0, 10))
+
+        self.timeline_slider = ctk.CTkSlider(
+            player_bar,
+            from_=0.0,
+            to=1.0,
+            number_of_steps=200,
+            command=self._on_seek_change,
+            button_color=M3_CTA,
+            progress_color=M3_PRIMARY[0]
+        )
+        self.timeline_slider.set(0.0)
+        self.timeline_slider.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        self.time_lbl = ctk.CTkLabel(
+            player_bar,
+            text="00:00 / 00:00",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.time_lbl.pack(side="right")
+
+        # Cues Table Header
+        table_hdr = ctk.CTkFrame(container, fg_color=M3_SURFACE_CONTAINER, height=32, corner_radius=8)
+        table_hdr.pack(fill="x", padx=20, pady=(0, 4))
+
+        ctk.CTkLabel(table_hdr, text="#", width=36, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(table_hdr, text="Start", width=105, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(table_hdr, text="Ende", width=105, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(table_hdr, text="Dauer", width=65, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(table_hdr, text="Untertitel-Text (Klick zum Bearbeiten)", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", fill="x", expand=True, padx=8)
+        ctk.CTkLabel(table_hdr, text="Lesetempo (CPS)", width=120, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+        ctk.CTkLabel(table_hdr, text="Aktion", width=45, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+
+        # Cues Scrollable Frame
+        self.cues_scroll = ctk.CTkScrollableFrame(
+            container,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=12,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        self.cues_scroll.pack(fill="both", expand=True, padx=20, pady=(0, 10))
+
+        # Action Footer
+        action_bar = ctk.CTkFrame(container, fg_color="transparent")
+        action_bar.pack(fill="x", padx=20, pady=(0, 14))
+
+        self.btn_auto_cues = ctk.CTkButton(
+            action_bar,
+            text="⚡ Auto-Generieren aus Skript",
+            image=get_ui_icon("sparkles", "white", 13),
+            compound="left",
+            command=self._auto_generate_from_script,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_PRIMARY[0],
+            text_color="#FFFFFF"
+        )
+        self.btn_auto_cues.pack(side="left", padx=(0, 8))
+
+        self.btn_add_cue = ctk.CTkButton(
+            action_bar,
+            text="➕ Cue hinzufügen",
+            command=self._add_new_cue,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1.5,
+            border_color=M3_OUTLINE
+        )
+        self.btn_add_cue.pack(side="left")
+
+        # Export Buttons on Right
+        self.btn_export_vtt = ctk.CTkButton(
+            action_bar,
+            text="🌐 .VTT exportieren",
+            command=self._export_vtt,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SECONDARY_CONTAINER,
+            text_color=M3_ON_SECONDARY_CONTAINER
+        )
+        self.btn_export_vtt.pack(side="right", padx=(8, 0))
+
+        self.btn_export_srt = ctk.CTkButton(
+            action_bar,
+            text="💾 .SRT exportieren",
+            image=get_ui_icon("download", "white", 13),
+            compound="left",
+            command=self._export_srt,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_CTA,
+            hover_color=M3_CTA_HOVER,
+            text_color="#FFFFFF"
+        )
+        self.btn_export_srt.pack(side="right")
+
+    def _load_or_generate_initial_cues(self):
+        duration = self.audio_duration or 10.0
+        text = self.script_text.strip()
+        if text:
+            self.cues = generate_subtitle_cues(text, total_audio_duration_sec=duration)
+        self._refresh_cues_table()
+
+    def _auto_generate_from_script(self):
+        text = self.script_text.strip()
+        if not text:
+            if hasattr(self.parent_app, "text_input"):
+                text = self.parent_app.text_input.get("0.0", "end").strip()
+        if not text:
+            messagebox.showwarning("Hinweis", "Kein Text im Skriptfeld vorhanden.")
+            return
+
+        duration = self.audio_duration or (self.player.get_duration() if self.player else 10.0) or 10.0
+        self.cues = generate_subtitle_cues(text, total_audio_duration_sec=duration)
+        self._refresh_cues_table()
+
+    def _refresh_cues_table(self):
+        for widget in self.cues_scroll.winfo_children():
+            widget.destroy()
+
+        if not self.cues:
+            ctk.CTkLabel(
+                self.cues_scroll,
+                text="Keine Untertitel-Cues vorhanden. Klicke auf 'Auto-Generieren aus Skript'.",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(pady=20)
+            return
+
+        for idx, cue in enumerate(self.cues):
+            row = ctk.CTkFrame(
+                self.cues_scroll,
+                fg_color=M3_SURFACE,
+                corner_radius=8,
+                border_width=1,
+                border_color=M3_OUTLINE_VARIANT
+            )
+            row.pack(fill="x", pady=3, padx=2)
+
+            # Number
+            ctk.CTkLabel(
+                row,
+                text=str(cue.get("index", idx + 1)),
+                width=36,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(side="left", padx=4)
+
+            # Start Entry
+            s_entry = ctk.CTkEntry(
+                row,
+                width=105,
+                height=28,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                corner_radius=6
+            )
+            s_entry.insert(0, cue.get("start", "00:00:00,000"))
+            s_entry.pack(side="left", padx=4)
+            s_entry.bind("<FocusOut>", lambda e, i=idx, entry=s_entry: self._update_cue_time(i, "start", entry.get()))
+
+            # End Entry
+            e_entry = ctk.CTkEntry(
+                row,
+                width=105,
+                height=28,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                corner_radius=6
+            )
+            e_entry.insert(0, cue.get("end", "00:00:02,000"))
+            e_entry.pack(side="left", padx=4)
+            e_entry.bind("<FocusOut>", lambda e, i=idx, entry=e_entry: self._update_cue_time(i, "end", entry.get()))
+
+            # Duration
+            dur_sec = cue.get("duration", 2.0)
+            ctk.CTkLabel(
+                row,
+                text=f"{dur_sec:.1f}s",
+                width=65,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(side="left", padx=4)
+
+            # Text Entry (Editable inline)
+            t_entry = ctk.CTkEntry(
+                row,
+                height=28,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                corner_radius=6
+            )
+            t_entry.insert(0, cue.get("text", ""))
+            t_entry.pack(side="left", fill="x", expand=True, padx=8)
+            t_entry.bind("<FocusOut>", lambda e, i=idx, entry=t_entry: self._update_cue_text(i, entry.get()))
+
+            # CPS Pill
+            cps = cue.get("cps", 0.0)
+            if cps == 0.0:
+                cps = calculate_cps(cue.get("text", ""), dur_sec)
+
+            if cps <= 15:
+                cps_color = ("#D1FAE5", "#064E3B")
+                cps_text_color = ("#065F46", "#34D399")
+                cps_label = f"{cps:.1f} CPS (Ideal)"
+            elif cps <= 20:
+                cps_color = ("#FEF3C7", "#78350F")
+                cps_text_color = ("#92400E", "#FBBF24")
+                cps_label = f"{cps:.1f} CPS (Gut)"
+            else:
+                cps_color = ("#FEE2E2", "#7F1D1D")
+                cps_text_color = ("#991B1B", "#F87171")
+                cps_label = f"{cps:.1f} CPS (Schnell)"
+
+            cps_badge = ctk.CTkLabel(
+                row,
+                text=cps_label,
+                width=120,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+                fg_color=cps_color,
+                text_color=cps_text_color,
+                corner_radius=6,
+                pady=2
+            )
+            cps_badge.pack(side="left", padx=4)
+
+            # Delete
+            del_btn = ctk.CTkButton(
+                row,
+                text="",
+                image=get_ui_icon("trash", "danger", 12),
+                command=lambda i=idx: self._delete_cue(i),
+                width=28,
+                height=28,
+                corner_radius=14,
+                fg_color="transparent",
+                hover_color=M3_ERROR_HOVER
+            )
+            del_btn.pack(side="left", padx=4)
+
+    def _update_cue_text(self, index: int, new_text: str):
+        if 0 <= index < len(self.cues):
+            self.cues[index]["text"] = new_text
+            dur = self.cues[index].get("duration", 2.0)
+            self.cues[index]["cps"] = calculate_cps(new_text, dur)
+
+    def _update_cue_time(self, index: int, field: str, new_val: str):
+        if 0 <= index < len(self.cues):
+            self.cues[index][field] = new_val
+
+    def _delete_cue(self, index: int):
+        if 0 <= index < len(self.cues):
+            self.cues.pop(index)
+            # Reindex
+            for i, c in enumerate(self.cues):
+                c["index"] = i + 1
+            self._refresh_cues_table()
+
+    def _add_new_cue(self):
+        last_end = "00:00:00,000"
+        if self.cues:
+            last_end = self.cues[-1].get("end", "00:00:00,000")
+
+        new_c = {
+            "index": len(self.cues) + 1,
+            "start": last_end,
+            "end": last_end,
+            "duration": 2.0,
+            "text": "Neuer Untertitel",
+            "cps": 7.5
+        }
+        self.cues.append(new_c)
+        self._refresh_cues_table()
+
+    def _toggle_playback(self):
+        if not self.audio_path:
+            return
+        if self.player.is_playing() and not self.player.is_paused():
+            self.player.pause()
+            self.play_btn.configure(text="Fortsetzen")
+        elif self.player.is_paused():
+            self.player.resume()
+            self.play_btn.configure(text="Pause")
+        else:
+            self.player.play()
+            self.play_btn.configure(text="Pause")
+
+    def _stop_playback(self):
+        self.player.stop()
+        self.play_btn.configure(text="Abspielen")
+        self.timeline_slider.set(0.0)
+        self.cinema_text_lbl.configure(text="[Kein Untertitel an aktueller Position]")
+
+    def _on_seek_change(self, val):
+        dur = self.audio_duration or self.player.get_duration()
+        if dur > 0:
+            target = float(val) * dur
+            self.player.seek(target)
+            self._update_overlay_for_time(target)
+
+    def _setup_timer(self):
+        if not self.is_scrubbing:
+            if self.player.is_playing() or self.player.is_paused():
+                curr = self.player.get_position()
+                tot = self.audio_duration or self.player.get_duration()
+                if tot > 0:
+                    pct = curr / tot
+                    self.timeline_slider.set(pct)
+                    self.time_lbl.configure(text=f"{int(curr//60):02d}:{int(curr%60):02d} / {int(tot//60):02d}:{int(tot%60):02d}")
+                    self._update_overlay_for_time(curr)
+                if not self.player.is_playing() and not self.player.is_paused():
+                    self.play_btn.configure(text="Abspielen")
+        self.after(80, self._setup_timer)
+
+    def _update_overlay_for_time(self, curr_sec: float):
+        # Find active cue
+        matched_text = ""
+        for cue in self.cues:
+            # Parse start and end to seconds
+            s_sec = self._parse_timecode_to_sec(cue.get("start", ""))
+            e_sec = self._parse_timecode_to_sec(cue.get("end", ""))
+            if s_sec <= curr_sec <= e_sec:
+                matched_text = cue.get("text", "")
+                break
+
+        if matched_text:
+            self.cinema_text_lbl.configure(text=matched_text, fg_color=("#1A2E2A", "#142421"))
+        else:
+            self.cinema_text_lbl.configure(text="...", fg_color="transparent")
+
+    def _parse_timecode_to_sec(self, tc: str) -> float:
+        try:
+            tc = tc.replace(",", ".").strip()
+            parts = tc.split(":")
+            if len(parts) == 3:
+                return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+            elif len(parts) == 2:
+                return float(parts[0]) * 60 + float(parts[1])
+        except Exception:
+            pass
+        return 0.0
+
+    def _export_srt(self):
+        if not self.cues:
+            messagebox.showwarning("Hinweis", "Keine Untertitel zum Exportieren vorhanden.")
+            return
+
+        path = filedialog.asksaveasfilename(
+            title="Untertitel als .SRT speichern",
+            defaultextension=".srt",
+            filetypes=[("SubRip Subtitle (*.srt)", "*.srt"), ("Alle Dateien", "*.*")],
+            initialfile=f"untertitel_{int(time.time())}.srt"
+        )
+        if path:
+            try:
+                cues_to_srt(self.cues, Path(path))
+                messagebox.showinfo("Export erfolgreich", f"Untertitel wurden gespeichert:\n{path}")
+            except Exception as e:
+                messagebox.showerror("Fehler beim Export", str(e))
+
+    def _export_vtt(self):
+        if not self.cues:
+            messagebox.showwarning("Hinweis", "Keine Untertitel zum Exportieren vorhanden.")
+            return
+
+        path = filedialog.asksaveasfilename(
+            title="Untertitel als .VTT speichern",
+            defaultextension=".vtt",
+            filetypes=[("WebVTT Subtitle (*.vtt)", "*.vtt"), ("Alle Dateien", "*.*")],
+            initialfile=f"untertitel_{int(time.time())}.vtt"
+        )
+        if path:
+            try:
+                cues_to_vtt(self.cues, Path(path))
+                messagebox.showinfo("Export erfolgreich", f"WebVTT-Untertitel wurden gespeichert:\n{path}")
+            except Exception as e:
+                messagebox.showerror("Fehler beim Export", str(e))
 
 
 class VoiceStudioDialog(ctk.CTkToplevel):
@@ -2860,6 +3901,29 @@ class GeminiTTSApp(ctk.CTk):
         self.auto_update_on_start = True
         self.settings_dialog: Optional[SettingsDialog] = None
 
+        # Dialogs & Extended Features State
+        self.lexicon_dialog: Optional[LexiconDialog] = None
+        self.subtitle_dialog: Optional[SubtitleStudioDialog] = None
+
+        # Audio Ducking State (Collapsed & Disabled by default)
+        self.is_ducking_collapsed = True
+        self.ducking_enabled_var = ctk.BooleanVar(value=False)
+        self.ducking_music_path: Optional[Path] = None
+        self.ducking_music_label_var = ctk.StringVar(value="Keine Musikdatei gewählt")
+        self.ducking_volume_var = ctk.DoubleVar(value=0.15)
+        self.ducking_attenuation_var = ctk.DoubleVar(value=-14.0)
+        self.ducking_fade_var = ctk.BooleanVar(value=True)
+
+        # History & A/B Comparison Lab State (Collapsed by default)
+        self.is_ab_collapsed = True
+        self.slot_a_take: Optional[Dict[str, Any]] = None
+        self.slot_b_take: Optional[Dict[str, Any]] = None
+
+        # Multi-Speaker / Script Mode State
+        self.dialogue_pause_var = ctk.IntVar(value=350)
+        self.detected_speaker_vars: Dict[str, ctk.StringVar] = {}
+        self.is_generating_dialogue = False
+
         self._build_ui()
         self._setup_player_timer()
 
@@ -2937,6 +4001,23 @@ class GeminiTTSApp(ctk.CTk):
         )
         self.btn_settings.pack(side="right")
 
+        self.btn_lexicon = ctk.CTkButton(
+            self.actions_frame,
+            text="Aussprache-Lexikon",
+            image=get_ui_icon("book", "theme", 16),
+            compound="left",
+            command=self._open_lexicon_dialog,
+            height=36,
+            corner_radius=18,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1.5,
+            border_color=M3_OUTLINE
+        )
+        self.btn_lexicon.pack(side="right", padx=(0, 10))
+
         # ------------------ Main Auto-Scrollable Content Frame ------------------
         main_content = AutoScrollableFrame(self, fg_color="transparent")
         main_content.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
@@ -2948,7 +4029,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.mode_segmented = MaterialSegmentedControl(
             mode_frame,
-            values=["Einzeltext-Modus", "Dokumenten- & Batch-Import"],
+            values=["Einzeltext-Modus", "🎭 Skript & Dialog", "Dokumenten- & Batch-Import"],
             command=self._on_mode_switched,
             height=40
         )
@@ -3199,6 +4280,118 @@ class GeminiTTSApp(ctk.CTk):
         self.text_input.bind("<KeyRelease>", self._update_counters)
         self._update_counters()
 
+        # Collapsible Accordion: Background Music & Audio Ducking (Optional & Off by default)
+        self.ducking_section = ctk.CTkFrame(self.single_text_card, fg_color="transparent")
+        self.ducking_section.pack(fill="x", padx=20, pady=(0, 4))
+
+        ducking_hdr_row = ctk.CTkFrame(self.ducking_section, fg_color="transparent")
+        ducking_hdr_row.pack(fill="x", pady=(0, 2))
+
+        self.ducking_toggle_btn = ctk.CTkButton(
+            ducking_hdr_row,
+            text="🎵 Hintergrundmusik & Audio-Ducking (Optional)  ▾",
+            command=self._toggle_ducking_panel,
+            height=26,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=COLOR_MUTED_TEXT,
+            anchor="w"
+        )
+        self.ducking_toggle_btn.pack(side="left")
+
+        self.ducking_body_frame = ctk.CTkFrame(
+            self.ducking_section,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=12,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        # ducking_body_frame starts hidden/collapsed!
+
+        ducking_row1 = ctk.CTkFrame(self.ducking_body_frame, fg_color="transparent")
+        ducking_row1.pack(fill="x", padx=12, pady=(10, 6))
+
+        self.ducking_cb = ctk.CTkCheckBox(
+            ducking_row1,
+            text="Musik & Ducking aktivieren",
+            variable=self.ducking_enabled_var,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_PRIMARY[0]
+        )
+        self.ducking_cb.pack(side="left", padx=(0, 10))
+
+        self.btn_pick_music = ctk.CTkButton(
+            ducking_row1,
+            text="Musik wählen...",
+            image=get_ui_icon("music", "theme", 13),
+            compound="left",
+            command=self._pick_ducking_music,
+            height=28,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SURFACE,
+            text_color=M3_PRIMARY,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+        self.btn_pick_music.pack(side="left", padx=(0, 8))
+
+        self.ducking_music_lbl = ctk.CTkLabel(
+            ducking_row1,
+            textvariable=self.ducking_music_label_var,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.ducking_music_lbl.pack(side="left", fill="x", expand=True)
+
+        ducking_row2 = ctk.CTkFrame(self.ducking_body_frame, fg_color="transparent")
+        ducking_row2.pack(fill="x", padx=12, pady=(0, 10))
+
+        ctk.CTkLabel(
+            ducking_row2,
+            text="Lautstärke:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(side="left", padx=(0, 4))
+
+        self.ducking_vol_slider = ctk.CTkSlider(
+            ducking_row2,
+            from_=0.05,
+            to=0.40,
+            number_of_steps=14,
+            variable=self.ducking_volume_var,
+            width=100,
+            progress_color=M3_PRIMARY[0]
+        )
+        self.ducking_vol_slider.pack(side="left", padx=(0, 14))
+
+        ctk.CTkLabel(
+            ducking_row2,
+            text="Ducking-Absenkung:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(side="left", padx=(0, 4))
+
+        self.ducking_att_slider = ctk.CTkSlider(
+            ducking_row2,
+            from_=-24.0,
+            to=-6.0,
+            number_of_steps=18,
+            variable=self.ducking_attenuation_var,
+            width=100,
+            progress_color=M3_PRIMARY[0]
+        )
+        self.ducking_att_slider.pack(side="left", padx=(0, 14))
+
+        self.ducking_fade_cb = ctk.CTkCheckBox(
+            ducking_row2,
+            text="Fade-Out am Sprach-Ende",
+            variable=self.ducking_fade_var,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold")
+        )
+        self.ducking_fade_cb.pack(side="left")
+
         # Integrated Action Footer Bar (Directly inside script card)
         script_footer = ctk.CTkFrame(self.single_text_card, fg_color="transparent")
         script_footer.pack(fill="x", padx=20, pady=(2, 8))
@@ -3255,6 +4448,198 @@ class GeminiTTSApp(ctk.CTk):
         self.progress_bar.pack(fill="x", padx=20, pady=(0, 6))
         self.progress_bar.set(0.0)
         self.progress_bar.pack_forget()
+
+        # 2C: Multi-Speaker Script & Dialogue Card (Instantiated, packed only in script mode)
+        self.script_dialog_card = ctk.CTkFrame(
+            self.input_container,
+            corner_radius=20,
+            fg_color=M3_SURFACE,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+
+        script_hdr = ctk.CTkFrame(self.script_dialog_card, fg_color="transparent")
+        script_hdr.pack(fill="x", padx=20, pady=(12, 6))
+
+        ctk.CTkLabel(
+            script_hdr,
+            text="🎭 Multi-Sprecher & Hörspiel-Skript",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            script_hdr,
+            text="Format: [Sprecher]: (Regieanweisung) Gesprochener Text...",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(side="right")
+
+        # Quick Dialogue Speaker Insert Bar
+        script_tag_bar = ctk.CTkFrame(self.script_dialog_card, fg_color="transparent")
+        script_tag_bar.pack(fill="x", padx=20, pady=(0, 6))
+
+        ctk.CTkLabel(
+            script_tag_bar,
+            text="Schnell-Einfügen:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=M3_PRIMARY
+        ).pack(side="left", padx=(0, 6))
+
+        for tag_label, tag_val in [
+            ("+ [Erzähler]:", "[Erzähler]: "),
+            ("+ [Anna]:", "[Anna]: "),
+            ("+ [Ben]:", "[Ben]: "),
+            ("(flüstert)", "(flüstert) "),
+            ("(lacht)", "(lacht) "),
+            ("[Pause]", "[Pause] "),
+        ]:
+            s_btn = ctk.CTkButton(
+                script_tag_bar,
+                text=tag_label,
+                command=lambda t=tag_val: self._insert_script_tag(t),
+                height=26,
+                corner_radius=13,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+                fg_color=M3_SURFACE_CONTAINER,
+                hover_color=M3_PRIMARY_CONTAINER,
+                text_color=COLOR_PRIMARY_TEXT,
+                border_width=1,
+                border_color=M3_OUTLINE_VARIANT
+            )
+            s_btn.pack(side="left", padx=2)
+
+        # Script Textbox
+        self.script_input = ctk.CTkTextbox(
+            self.script_dialog_card,
+            height=145,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            wrap="word",
+            corner_radius=14,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT,
+            fg_color=("#FFFFFF", "#0E1A18"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.script_input.pack(fill="x", padx=20, pady=(0, 8))
+        sample_script = (
+            "[Erzähler]: Es war ein stürmischer Abend in den Bergen.\n"
+            "[Anna]: (flüstert) Hast du das seltsame Geräusch da draußen gehört?\n"
+            "[Ben]: (lacht) Keine Sorge Anna, das ist nur der Wind in den Bäumen.\n"
+            "[Erzähler]: Doch plötzlich klopfte es dreimal leise an die Hüttentür."
+        )
+        self.script_input.insert("0.0", sample_script)
+        self.script_input.bind("<KeyRelease>", lambda e: self._on_script_text_changed())
+
+        # Detected Speakers Cast Frame
+        cast_box = ctk.CTkFrame(
+            self.script_dialog_card,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=14,
+            border_width=1,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        cast_box.pack(fill="x", padx=20, pady=(0, 8))
+
+        cast_hdr = ctk.CTkFrame(cast_box, fg_color="transparent")
+        cast_hdr.pack(fill="x", padx=14, pady=(8, 4))
+
+        ctk.CTkLabel(
+            cast_hdr,
+            text="Rollen-Besetzung & Stimmenzuordnung:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        ).pack(side="left")
+
+        rescan_btn = ctk.CTkButton(
+            cast_hdr,
+            text="Rollen neu scannen",
+            command=self._refresh_detected_speakers,
+            height=26,
+            corner_radius=13,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE,
+            text_color=M3_PRIMARY,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+        rescan_btn.pack(side="right")
+
+        self.cast_speakers_container = ctk.CTkFrame(cast_box, fg_color="transparent")
+        self.cast_speakers_container.pack(fill="x", padx=14, pady=(0, 8))
+
+        # Pause Duration & Settings Row
+        pause_row = ctk.CTkFrame(cast_box, fg_color="transparent")
+        pause_row.pack(fill="x", padx=14, pady=(0, 8))
+
+        ctk.CTkLabel(
+            pause_row,
+            text="Sprechpause zwischen Dialog-Zeilen:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(side="left", padx=(0, 8))
+
+        self.pause_slider = ctk.CTkSlider(
+            pause_row,
+            from_=100,
+            to=1200,
+            number_of_steps=22,
+            variable=self.dialogue_pause_var,
+            width=160,
+            command=lambda v: self.pause_val_lbl.configure(text=f"{int(float(v))} ms"),
+            progress_color=M3_PRIMARY[0],
+            button_color=M3_CTA
+        )
+        self.pause_slider.pack(side="left", padx=(0, 8))
+
+        self.pause_val_lbl = ctk.CTkLabel(
+            pause_row,
+            text=f"{self.dialogue_pause_var.get()} ms",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=M3_PRIMARY
+        )
+        self.pause_val_lbl.pack(side="left")
+
+        # Script Action Footer
+        script_footer_dialog = ctk.CTkFrame(self.script_dialog_card, fg_color="transparent")
+        script_footer_dialog.pack(fill="x", padx=20, pady=(2, 8))
+
+        self.script_status_lbl = ctk.CTkLabel(
+            script_footer_dialog,
+            text="Skript bereit zur Dialog-Synthese.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=COLOR_MUTED_TEXT,
+            anchor="w"
+        )
+        self.script_status_lbl.pack(side="left")
+
+        self.script_generate_btn = ctk.CTkButton(
+            script_footer_dialog,
+            text="Dialog generieren",
+            image=get_ui_icon("sparkles", "white", 16),
+            compound="left",
+            command=self._start_dialogue_generation_thread,
+            width=180,
+            height=38,
+            corner_radius=19,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            fg_color=M3_CTA,
+            hover_color=M3_CTA_HOVER,
+            text_color="#FFFFFF"
+        )
+        self.script_generate_btn.pack(side="right")
+
+        self.script_progress_bar = ctk.CTkProgressBar(
+            self.script_dialog_card,
+            height=6,
+            corner_radius=3,
+            progress_color=M3_PRIMARY[0],
+            fg_color=M3_SURFACE_CONTAINER
+        )
+        self.script_progress_bar.pack(fill="x", padx=20, pady=(0, 6))
+        self.script_progress_bar.set(0.0)
+        self.script_progress_bar.pack_forget()
 
         # 2B: Batch Card (Instantiated, packed only in batch mode)
         self.batch_card = ctk.CTkFrame(
@@ -3590,6 +4975,125 @@ class GeminiTTSApp(ctk.CTk):
         self.action_container = ctk.CTkFrame(self, width=0, height=0)
         self.single_action_card = ctk.CTkFrame(self, width=0, height=0)
 
+        # ------------------ 6. Collapsible Generation History & A/B Comparison Lab (Optional & Collapsed by default) ------------------
+        self.ab_section = ctk.CTkFrame(main_content, fg_color="transparent")
+        self.ab_section.pack(fill="x", pady=(0, 4))
+
+        ab_hdr_row = ctk.CTkFrame(self.ab_section, fg_color="transparent")
+        ab_hdr_row.pack(fill="x", pady=(0, 2))
+
+        self.ab_toggle_btn = ctk.CTkButton(
+            ab_hdr_row,
+            text="⚖️ A/B-Vergleich & Take-Verlauf (Optional)  ▾",
+            command=self._toggle_ab_panel,
+            height=26,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=COLOR_MUTED_TEXT,
+            anchor="w"
+        )
+        self.ab_toggle_btn.pack(side="left")
+
+        self.ab_body_frame = ctk.CTkFrame(
+            self.ab_section,
+            fg_color=M3_SURFACE,
+            corner_radius=14,
+            border_width=1.5,
+            border_color=M3_OUTLINE_VARIANT
+        )
+        # ab_body_frame starts hidden/collapsed!
+
+        # Top row inside ab_body_frame: Slot A vs Slot B Cards
+        ab_slots_row = ctk.CTkFrame(self.ab_body_frame, fg_color="transparent")
+        ab_slots_row.pack(fill="x", padx=14, pady=(10, 8))
+        ab_slots_row.grid_columnconfigure((0, 2), weight=1)
+
+        # Slot A Card
+        self.slot_a_card = ctk.CTkFrame(ab_slots_row, fg_color=M3_SURFACE_CONTAINER, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
+        self.slot_a_card.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=2)
+
+        ctk.CTkLabel(self.slot_a_card, text="Slot A (Referenz-Take):", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=M3_PRIMARY).pack(anchor="w", padx=10, pady=(6, 2))
+        self.slot_a_lbl = ctk.CTkLabel(self.slot_a_card, text="Kein Take zugewiesen", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_PRIMARY_TEXT, anchor="w")
+        self.slot_a_lbl.pack(anchor="w", padx=10, pady=(0, 6))
+
+        # Center A/B Comparison Quick Switch
+        ab_toggle_box = ctk.CTkFrame(ab_slots_row, fg_color="transparent")
+        ab_toggle_box.grid(row=0, column=1, padx=6, pady=2)
+
+        ctk.CTkLabel(ab_toggle_box, text="Sofort-Vergleich:", font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(pady=(2, 2))
+        btn_ab_row = ctk.CTkFrame(ab_toggle_box, fg_color="transparent")
+        btn_ab_row.pack()
+
+        self.btn_listen_a = ctk.CTkButton(
+            btn_ab_row,
+            text="◀ Höre A",
+            command=lambda: self._play_slot("A"),
+            height=28,
+            width=75,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_PRIMARY_CONTAINER,
+            text_color=M3_ON_PRIMARY_CONTAINER
+        )
+        self.btn_listen_a.pack(side="left", padx=2)
+
+        self.btn_listen_b = ctk.CTkButton(
+            btn_ab_row,
+            text="Höre B ▶",
+            command=lambda: self._play_slot("B"),
+            height=28,
+            width=75,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SECONDARY_CONTAINER,
+            text_color=M3_ON_SECONDARY_CONTAINER
+        )
+        self.btn_listen_b.pack(side="left", padx=2)
+
+        # Slot B Card
+        self.slot_b_card = ctk.CTkFrame(ab_slots_row, fg_color=M3_SURFACE_CONTAINER, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
+        self.slot_b_card.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=2)
+
+        ctk.CTkLabel(self.slot_b_card, text="Slot B (Vergleichs-Take):", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=COLOR_PRIMARY_TEXT).pack(anchor="w", padx=10, pady=(6, 2))
+        self.slot_b_lbl = ctk.CTkLabel(self.slot_b_card, text="Kein Take zugewiesen", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_PRIMARY_TEXT, anchor="w")
+        self.slot_b_lbl.pack(anchor="w", padx=10, pady=(0, 6))
+
+        # Bottom row inside ab_body_frame: Take History Table
+        hist_hdr_row = ctk.CTkFrame(self.ab_body_frame, fg_color="transparent")
+        hist_hdr_row.pack(fill="x", padx=14, pady=(4, 4))
+
+        self.history_count_lbl = ctk.CTkLabel(
+            hist_hdr_row,
+            text="Take-Historie der aktuellen Sitzung",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_PRIMARY_TEXT
+        )
+        self.history_count_lbl.pack(side="left")
+
+        clear_hist_btn = ctk.CTkButton(
+            hist_hdr_row,
+            text="Historie leeren",
+            command=self._clear_ab_history,
+            height=24,
+            corner_radius=12,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_ERROR_HOVER,
+            text_color=M3_ERROR,
+            border_width=1,
+            border_color=M3_ERROR_CONTAINER
+        )
+        clear_hist_btn.pack(side="right")
+
+        self.ab_history_scroll = ctk.CTkScrollableFrame(
+            self.ab_body_frame,
+            height=125,
+            fg_color=M3_SURFACE_CONTAINER,
+            corner_radius=10
+        )
+        self.ab_history_scroll.pack(fill="x", padx=14, pady=(0, 10))
+
         # ------------------ 7. Permanent Audio Player & Export Card (Bottom) ------------------
         player_card = ctk.CTkFrame(
             main_content,
@@ -3742,6 +5246,24 @@ class GeminiTTSApp(ctk.CTk):
         )
         self.export_btn.grid(row=0, column=5, padx=(4, 0))
 
+        # Subtitle Studio Button (Dedicated Subtitle & Video Sync Studio)
+        self.btn_subtitle_studio = ctk.CTkButton(
+            controls_frame,
+            text="Untertitel-Studio",
+            image=get_ui_icon("subtitles", "theme", 14),
+            compound="left",
+            command=self._open_subtitle_studio_dialog,
+            height=34,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1.5,
+            border_color=M3_OUTLINE
+        )
+        self.btn_subtitle_studio.grid(row=0, column=6, padx=(6, 0))
+
         # Enforce initial mode layout (Single text mode active, batch hidden)
         self._on_mode_switched("Einzeltext-Modus")
 
@@ -3833,15 +5355,433 @@ class GeminiTTSApp(ctk.CTk):
     # ------------------ Mode Switching (Zero Position Shift) ------------------
 
     def _on_mode_switched(self, mode_value: str):
-        """Switches between Single-Text and Batch mode in-place without moving other cards."""
+        """Switches between Single-Text, Script & Dialogue, and Batch mode in-place without moving other cards."""
         if "Einzeltext" in mode_value:
             self.current_mode = "single"
+            if hasattr(self, "script_dialog_card"):
+                self.script_dialog_card.pack_forget()
             self.batch_card.pack_forget()
             self.single_text_card.pack(fill="x", in_=self.input_container, pady=(0, 8))
+        elif "Skript" in mode_value or "Dialog" in mode_value:
+            self.current_mode = "script"
+            self.single_text_card.pack_forget()
+            self.batch_card.pack_forget()
+            if hasattr(self, "script_dialog_card"):
+                self.script_dialog_card.pack(fill="x", in_=self.input_container, pady=(0, 8))
+                self._refresh_detected_speakers()
         else:
             self.current_mode = "batch"
             self.single_text_card.pack_forget()
+            if hasattr(self, "script_dialog_card"):
+                self.script_dialog_card.pack_forget()
             self.batch_card.pack(fill="x", in_=self.input_container, pady=(0, 8))
+
+    # ------------------ Dialog Openers (Lexicon & Subtitle Studio) ------------------
+
+    def _open_lexicon_dialog(self):
+        """Opens or focuses the Phonetic Lexicon & Pronunciation Dictionary Dialog."""
+        if self.lexicon_dialog and self.lexicon_dialog.winfo_exists():
+            self.lexicon_dialog.lift()
+            self.lexicon_dialog.focus_force()
+        else:
+            self.lexicon_dialog = LexiconDialog(self)
+
+    def _open_subtitle_studio_dialog(self):
+        """Opens or focuses the dedicated Subtitle Studio & Video Sync Dialog."""
+        current_audio = self.current_converted_file or self.current_generated_wav
+        current_text = ""
+        if self.current_mode == "single" and hasattr(self, "text_input"):
+            current_text = self.text_input.get("0.0", "end").strip()
+        elif hasattr(self, "script_input"):
+            current_text = self.script_input.get("0.0", "end").strip()
+
+        if self.subtitle_dialog and self.subtitle_dialog.winfo_exists():
+            self.subtitle_dialog.lift()
+            self.subtitle_dialog.focus_force()
+        else:
+            self.subtitle_dialog = SubtitleStudioDialog(self, audio_path=current_audio, script_text=current_text)
+
+    # ------------------ Audio Ducking Controls ------------------
+
+    def _toggle_ducking_panel(self):
+        """Toggle collapsible Background Music & Audio Ducking accordion."""
+        if self.is_ducking_collapsed:
+            self.ducking_body_frame.pack(fill="x", pady=(4, 6))
+            self.ducking_toggle_btn.configure(text="🎵 Hintergrundmusik & Audio-Ducking (Optional)  ▴")
+            self.is_ducking_collapsed = False
+        else:
+            self.ducking_body_frame.pack_forget()
+            self.ducking_toggle_btn.configure(text="🎵 Hintergrundmusik & Audio-Ducking (Optional)  ▾")
+            self.is_ducking_collapsed = True
+
+    def _pick_ducking_music(self):
+        """Pick background music file for sidechain ducking."""
+        path = filedialog.askopenfilename(
+            title="Hintergrundmusik auswählen",
+            filetypes=[("Audiodateien (*.mp3, *.wav, *.ogg, *.m4a)", "*.mp3 *.wav *.ogg *.m4a"), ("Alle Dateien", "*.*")]
+        )
+        if path:
+            self.ducking_music_path = Path(path)
+            self.ducking_music_label_var.set(self.ducking_music_path.name)
+            self.ducking_enabled_var.set(True)
+
+    # ------------------ A/B Comparison Lab & History Controls ------------------
+
+    def _toggle_ab_panel(self):
+        """Toggle collapsible A/B Comparison & History accordion."""
+        if self.is_ab_collapsed:
+            self.ab_body_frame.pack(fill="x", pady=(4, 6))
+            self.ab_toggle_btn.configure(text="⚖️ A/B-Vergleich & Take-Verlauf (Optional)  ▴")
+            self.is_ab_collapsed = False
+            self._refresh_ab_ui()
+        else:
+            self.ab_body_frame.pack_forget()
+            self.ab_toggle_btn.configure(text="⚖️ A/B-Vergleich & Take-Verlauf (Optional)  ▾")
+            self.is_ab_collapsed = True
+
+    def _refresh_ab_ui(self):
+        """Refreshes Slot A/B cards and History list table."""
+        if not hasattr(self, "ab_history_scroll"):
+            return
+
+        slots = get_ab_slots()
+        take_a = slots.get("A")
+        take_b = slots.get("B")
+
+        if take_a:
+            self.slot_a_lbl.configure(text=f"{take_a.get('voice', 'Stimme')} ({take_a.get('duration', 0):.1f}s)\n'{take_a.get('snippet', '')}'")
+        else:
+            self.slot_a_lbl.configure(text="Kein Take in Slot A zugewiesen")
+
+        if take_b:
+            self.slot_b_lbl.configure(text=f"{take_b.get('voice', 'Stimme')} ({take_b.get('duration', 0):.1f}s)\n'{take_b.get('snippet', '')}'")
+        else:
+            self.slot_b_lbl.configure(text="Kein Take in Slot B zugewiesen")
+
+        for widget in self.ab_history_scroll.winfo_children():
+            widget.destroy()
+
+        history = load_history()
+        self.history_count_lbl.configure(text=f"Take-Historie der aktuellen Sitzung ({len(history)} Takes)")
+
+        if not history:
+            ctk.CTkLabel(
+                self.ab_history_scroll,
+                text="Noch keine Takes generiert. Generierte Audios werden automatisch hier erfasst.",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(pady=14)
+            return
+
+        for item in history:
+            row = ctk.CTkFrame(self.ab_history_scroll, fg_color=M3_SURFACE, corner_radius=8, border_width=1, border_color=M3_OUTLINE_VARIANT)
+            row.pack(fill="x", pady=2, padx=2)
+
+            # Timestamp & Voice
+            ctk.CTkLabel(row, text=item.get("timestamp", ""), width=60, font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+            ctk.CTkLabel(row, text=item.get("voice", ""), width=110, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color=M3_PRIMARY).pack(side="left", padx=4)
+            ctk.CTkLabel(row, text=f"{item.get('duration', 0):.1f}s", width=45, font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=COLOR_MUTED_TEXT).pack(side="left", padx=4)
+            ctk.CTkLabel(row, text=item.get("snippet", ""), font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_PRIMARY_TEXT, anchor="w").pack(side="left", fill="x", expand=True, padx=6)
+
+            # Actions
+            audio_p = Path(item.get("audio_path", ""))
+            btn_play = ctk.CTkButton(
+                row,
+                text="▶",
+                command=lambda p=audio_p: self._play_history_audio(p),
+                width=28,
+                height=24,
+                corner_radius=12,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+                fg_color=M3_PRIMARY_CONTAINER,
+                text_color=M3_ON_PRIMARY_CONTAINER
+            )
+            btn_play.pack(side="left", padx=2)
+
+            btn_set_a = ctk.CTkButton(
+                row,
+                text="Als A",
+                command=lambda t_id=item["id"]: self._set_slot_a(t_id),
+                width=42,
+                height=24,
+                corner_radius=12,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+                fg_color=M3_SURFACE_CONTAINER,
+                text_color=M3_PRIMARY,
+                border_width=1,
+                border_color=M3_OUTLINE
+            )
+            btn_set_a.pack(side="left", padx=2)
+
+            btn_set_b = ctk.CTkButton(
+                row,
+                text="Als B",
+                command=lambda t_id=item["id"]: self._set_slot_b(t_id),
+                width=42,
+                height=24,
+                corner_radius=12,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+                fg_color=M3_SURFACE_CONTAINER,
+                text_color=M3_PRIMARY,
+                border_width=1,
+                border_color=M3_OUTLINE
+            )
+            btn_set_b.pack(side="left", padx=2)
+
+    def _play_history_audio(self, audio_p: Path):
+        if audio_p and audio_p.exists():
+            self.player.load(audio_p)
+            self.current_converted_file = audio_p
+            if hasattr(self, "waveform_view"):
+                self.waveform_view.load_audio(audio_p)
+            self._toggle_playback()
+
+    def _set_slot_a(self, take_id: str):
+        set_ab_slot("A", take_id)
+        self._refresh_ab_ui()
+
+    def _set_slot_b(self, take_id: str):
+        set_ab_slot("B", take_id)
+        self._refresh_ab_ui()
+
+    def _play_slot(self, slot: str):
+        slots = get_ab_slots()
+        take = slots.get(slot.upper())
+        if take:
+            p = Path(take.get("audio_path", ""))
+            if p.exists():
+                self.player.load(p)
+                self.current_converted_file = p
+                if hasattr(self, "waveform_view"):
+                    self.waveform_view.load_audio(p)
+                self._toggle_playback()
+            else:
+                messagebox.showwarning("Hinweis", f"Datei für Slot {slot} nicht mehr vorhanden.")
+
+    def _clear_ab_history(self):
+        if messagebox.askyesno("Bestätigung", "Möchtest du die Take-Historie leeren?"):
+            clear_history()
+            self._refresh_ab_ui()
+
+    # ------------------ Multi-Speaker Script & Dialogue Helpers ------------------
+
+    def _insert_script_tag(self, tag: str):
+        if hasattr(self, "script_input"):
+            self.script_input.insert("insert", tag)
+            self.script_input.focus_set()
+            self._on_script_text_changed()
+
+    def _on_script_text_changed(self):
+        self._refresh_detected_speakers()
+
+    def _refresh_detected_speakers(self):
+        if not hasattr(self, "script_input") or not hasattr(self, "cast_speakers_container"):
+            return
+
+        text = self.script_input.get("0.0", "end")
+        speakers = extract_speakers(text)
+
+        for widget in self.cast_speakers_container.winfo_children():
+            widget.destroy()
+
+        if not speakers:
+            ctk.CTkLabel(
+                self.cast_speakers_container,
+                text="Keine Sprecher erkannt. Verwende [Sprechername]: am Zeilenanfang.",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(anchor="w", pady=4)
+            return
+
+        all_v = get_all_voices()
+        v_labels = [format_voice_display_label(v) for v in all_v]
+        defaults_palette = ["Charon", "Aoede", "Puck", "Fenrir", "Kore", "Zephyr"]
+
+        for idx, spk in enumerate(speakers):
+            if spk not in self.detected_speaker_vars:
+                def_choice = defaults_palette[idx % len(defaults_palette)]
+                matched = [lbl for lbl in v_labels if def_choice.lower() in lbl.lower()]
+                self.detected_speaker_vars[spk] = ctk.StringVar(value=matched[0] if matched else v_labels[0])
+
+            card = ctk.CTkFrame(self.cast_speakers_container, fg_color=M3_SURFACE, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
+            card.pack(fill="x", pady=3)
+
+            # Speaker Pill Label
+            ctk.CTkLabel(
+                card,
+                text=f"[{spk}]",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+                text_color=M3_PRIMARY,
+                width=100,
+                anchor="w"
+            ).pack(side="left", padx=(10, 6), pady=6)
+
+            ctk.CTkLabel(
+                card,
+                text="Stimme:",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+                text_color=COLOR_MUTED_TEXT
+            ).pack(side="left", padx=(0, 4))
+
+            v_menu = ctk.CTkOptionMenu(
+                card,
+                values=v_labels,
+                variable=self.detected_speaker_vars[spk],
+                width=220,
+                height=28,
+                corner_radius=14,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold")
+            )
+            v_menu.pack(side="left", padx=(0, 10))
+
+    def _start_dialogue_generation_thread(self):
+        if self.is_generating_dialogue or self.is_generating:
+            return
+
+        script_text = self.script_input.get("0.0", "end").strip()
+        if not script_text:
+            messagebox.showwarning("Hinweis", "Bitte gib ein Dialog-Skript ein.")
+            return
+
+        # Build speaker-voice map
+        speaker_voice_map = {}
+        for spk, var in self.detected_speaker_vars.items():
+            speaker_voice_map[spk] = extract_voice_id_from_choice(var.get())
+
+        pause_ms = self.dialogue_pause_var.get()
+        settings = self._get_current_encoding_settings()
+
+        self.is_generating_dialogue = True
+        self.script_generate_btn.configure(state="disabled", text="Dialog wird generiert...")
+        self.script_progress_bar.pack(fill="x", padx=20, pady=(0, 6))
+        self.script_progress_bar.set(0.05)
+        self.script_status_lbl.configure(text="Initialisiere Multi-Sprecher Synthese...", text_color="#38BDF8")
+
+        thread = threading.Thread(
+            target=self._run_dialogue_generation,
+            args=(script_text, speaker_voice_map, pause_ms, settings),
+            daemon=True
+        )
+        thread.start()
+
+    def _run_dialogue_generation(
+        self,
+        script_text: str,
+        speaker_voice_map: Dict[str, str],
+        pause_ms: int,
+        settings: Dict[str, Any]
+    ):
+        try:
+            start_time = time.time()
+
+            def on_script_progress(val: float, msg: str):
+                self.after(0, lambda: (
+                    self.script_progress_bar.set(val),
+                    self.script_status_lbl.configure(text=msg, text_color="#38BDF8")
+                ))
+
+            # Synthesize sequential dialogue with seamless stitching
+            raw_dialogue_wav = synthesize_dialogue_script(
+                script_text=script_text,
+                speaker_voice_map=speaker_voice_map,
+                pause_duration_ms=pause_ms,
+                progress_callback=on_script_progress,
+                tts_service=self.tts_service
+            )
+
+            final_wav = raw_dialogue_wav
+
+            # Sidechain Audio Ducking if enabled
+            if self.ducking_enabled_var.get() and self.ducking_music_path and self.ducking_music_path.exists():
+                on_script_progress(0.92, "Mische Hintergrundmusik & Audio-Ducking ein...")
+                ducked_wav = TEMP_DIR / f"ducked_dialogue_{int(time.time())}.wav"
+                try:
+                    apply_audio_ducking(
+                        speech_wav=raw_dialogue_wav,
+                        music_file=self.ducking_music_path,
+                        output_wav=ducked_wav,
+                        music_volume=self.ducking_volume_var.get(),
+                        ducking_attenuation_db=self.ducking_attenuation_var.get(),
+                        fade_out_sec=2.5 if self.ducking_fade_var.get() else 0.0
+                    )
+                    final_wav = ducked_wav
+                except Exception as e:
+                    print(f"Warnung Audio Ducking: {e}")
+
+            self.current_generated_wav = final_wav
+
+            on_script_progress(0.96, "Konvertiere Dialog in Zielformat...")
+            out_file = OUTPUT_DIR / f"dialogue_output_{int(time.time())}{settings['extension']}"
+
+            converted_path = convert_audio(
+                input_file=final_wav,
+                output_file=out_file,
+                codec=settings["codec"],
+                channels=settings["channels"],
+                sample_rate=settings["sample_rate"],
+                bitrate=settings["bitrate"],
+                faststart=settings["faststart"]
+            )
+            self.current_converted_file = converted_path
+
+            duration = time.time() - start_time
+            file_size_kb = converted_path.stat().st_size / 1024.0
+
+            self.player.load(converted_path)
+
+            # Log into take history
+            try:
+                log_generation(
+                    audio_path=converted_path,
+                    voice_name="Multi-Voice Dialog",
+                    model="gemini-3.8-flash-tts",
+                    text=script_text,
+                    tone="Dialog / Hörspiel",
+                    duration_sec=self.player.get_duration() or duration
+                )
+                self.after(0, self._refresh_ab_ui)
+            except Exception as e:
+                print(f"Historien-Logging Fehler: {e}")
+
+            self.after(0, self._on_dialogue_generation_success, duration, file_size_kb, converted_path.name)
+
+        except Exception as e:
+            self.after(0, self._on_dialogue_generation_error, str(e))
+
+    def _on_dialogue_generation_success(self, duration: float, file_size_kb: float, filename: str):
+        self.is_generating_dialogue = False
+        self.script_progress_bar.set(1.0)
+        self.after(800, lambda: self.script_progress_bar.pack_forget())
+        self.script_generate_btn.configure(state="normal", text="Dialog generieren", image=get_ui_icon("sparkles", "white", 16))
+        self.script_status_lbl.configure(
+            text=f"Dialog fertig ({duration:.1f}s)! Datei: {filename} ({file_size_kb:.1f} KB)",
+            text_color="#10B981"
+        )
+        self.play_btn.configure(
+            state="normal",
+            fg_color=M3_PRIMARY,
+            text_color=("#FFFFFF", "#00201C"),
+            border_width=0,
+            text="Abspielen",
+            image=get_ui_icon("play", "white", 13)
+        )
+        self.stop_btn.configure(state="normal")
+        self.export_btn.configure(state="normal")
+        self.timeline_slider.configure(state="normal")
+
+        if hasattr(self, "waveform_view"):
+            if self.current_generated_wav and self.current_generated_wav.exists():
+                self.waveform_view.load_audio(self.current_generated_wav)
+
+        self._toggle_playback()
+
+    def _on_dialogue_generation_error(self, err_msg: str):
+        self.is_generating_dialogue = False
+        self.script_progress_bar.pack_forget()
+        self.script_generate_btn.configure(state="normal", text="Dialog generieren", image=get_ui_icon("sparkles", "white", 16))
+        self.script_status_lbl.configure(text=f"Fehler: {err_msg}", text_color="#EF4444")
+        messagebox.showerror("Fehler bei Dialog-Synthese", err_msg)
+
 
     def _on_more_tag_selected(self, val: str):
         """Inserts selected tag from the '+ Mehr Tags ▾' dropdown into script."""
@@ -4653,14 +6593,34 @@ class GeminiTTSApp(ctk.CTk):
                 system_prompt=system_prompt,
                 progress_callback=self._update_generation_progress
             )
-            self.current_generated_wav = raw_wav_path
+
+            final_wav_path = raw_wav_path
+
+            # Sidechain Audio Ducking if enabled
+            if self.ducking_enabled_var.get() and self.ducking_music_path and self.ducking_music_path.exists():
+                self._update_generation_progress(0.92, "Mische Hintergrundmusik & Audio-Ducking ein...")
+                ducked_wav = TEMP_DIR / f"ducked_speech_{int(time.time())}.wav"
+                try:
+                    apply_audio_ducking(
+                        speech_wav=raw_wav_path,
+                        music_file=self.ducking_music_path,
+                        output_wav=ducked_wav,
+                        music_volume=self.ducking_volume_var.get(),
+                        ducking_attenuation_db=self.ducking_attenuation_var.get(),
+                        fade_out_sec=2.5 if self.ducking_fade_var.get() else 0.0
+                    )
+                    final_wav_path = ducked_wav
+                except Exception as e:
+                    print(f"Warnung Audio Ducking: {e}")
+
+            self.current_generated_wav = final_wav_path
 
             self._update_generation_progress(0.95, "Konvertiere Audio in Zielformat...")
             
             output_converted_path = OUTPUT_DIR / f"tts_output_{int(time.time())}{settings['extension']}"
             
             converted_path = convert_audio(
-                input_file=raw_wav_path,
+                input_file=final_wav_path,
                 output_file=output_converted_path,
                 codec=settings["codec"],
                 channels=settings["channels"],
@@ -4674,6 +6634,20 @@ class GeminiTTSApp(ctk.CTk):
             file_size_kb = converted_path.stat().st_size / 1024.0
 
             self.player.load(converted_path)
+
+            # Log into take history
+            try:
+                log_generation(
+                    audio_path=converted_path,
+                    voice_name=voice_choice,
+                    model=model_id,
+                    text=text,
+                    tone=system_prompt,
+                    duration_sec=self.player.get_duration() or duration
+                )
+                self.after(0, self._refresh_ab_ui)
+            except Exception as e:
+                print(f"Historien-Logging Fehler: {e}")
 
             self.after(0, self._on_generation_success, duration, file_size_kb, converted_path.name)
 

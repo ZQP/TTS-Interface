@@ -486,6 +486,13 @@ class GeminiTTSService:
         if not text or not text.strip():
             raise ValueError("Bitte gib einen Text für die Sprachgenerierung ein.")
 
+        # Apply phonetic lexicon replacements before preprocessing and chunking
+        try:
+            from .lexicon_service import apply_lexicon
+            text = apply_lexicon(text)
+        except Exception:
+            pass
+
         processed_text = preprocess_text_for_gemini(text)
         chunks = split_text_into_chunks(processed_text, max_chunk_chars=400)
         total_chunks = len(chunks)

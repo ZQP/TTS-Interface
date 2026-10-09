@@ -173,6 +173,46 @@ def _draw_sun(color: Tuple[int, int, int, int], size: int = 64) -> Image.Image:
     return img
 
 
+def _draw_book(color: Tuple[int, int, int, int], size: int = 64) -> Image.Image:
+    img, draw = _create_canvas(size)
+    cx, cy = size / 2, size / 2
+    # Open book spine and two pages
+    draw.line((cx, cy - 14, cx, cy + 16), fill=color, width=3)
+    draw.polygon([(cx - 18, cy - 12), (cx, cy - 14), (cx, cy + 16), (cx - 18, cy + 14)], outline=color, width=3)
+    draw.polygon([(cx, cy - 14), (cx + 18, cy - 12), (cx + 18, cy + 14), (cx, cy + 16)], outline=color, width=3)
+    return img
+
+
+def _draw_music(color: Tuple[int, int, int, int], size: int = 64) -> Image.Image:
+    img, draw = _create_canvas(size)
+    cx, cy = size / 2, size / 2
+    # Dual eighth notes
+    draw.ellipse((cx - 16, cy + 6, cx - 6, cy + 16), fill=color)
+    draw.ellipse((cx + 6, cy + 2, cx + 16, cy + 12), fill=color)
+    draw.line((cx - 7, cy + 10, cx - 7, cy - 14), fill=color, width=3)
+    draw.line((cx + 15, cy + 6, cx + 15, cy - 18), fill=color, width=3)
+    draw.polygon([(cx - 7, cy - 14), (cx + 15, cy - 18), (cx + 15, cy - 12), (cx - 7, cy - 8)], fill=color)
+    return img
+
+
+def _draw_subtitles(color: Tuple[int, int, int, int], size: int = 64) -> Image.Image:
+    img, draw = _create_canvas(size)
+    cx, cy = size / 2, size / 2
+    draw.rounded_rectangle((cx - 20, cy - 15, cx + 20, cy + 15), radius=4, outline=color, width=3)
+    draw.line((cx - 12, cy + 4, cx + 12, cy + 4), fill=color, width=3)
+    draw.line((cx - 8, cy + 9, cx + 8, cy + 9), fill=color, width=3)
+    return img
+
+
+def _draw_compare(color: Tuple[int, int, int, int], size: int = 64) -> Image.Image:
+    img, draw = _create_canvas(size)
+    cx, cy = size / 2, size / 2
+    # Two cards side by side
+    draw.rounded_rectangle((cx - 19, cy - 14, cx - 3, cy + 14), radius=3, outline=color, width=3)
+    draw.rounded_rectangle((cx + 3, cy - 14, cx + 19, cy + 14), radius=3, outline=color, width=3)
+    return img
+
+
 def get_ui_icon(name: str, variant: str = "theme", size: int = 16) -> ctk.CTkImage:
     """
     Returns a cached CTkImage for the requested icon name.
@@ -205,6 +245,12 @@ def get_ui_icon(name: str, variant: str = "theme", size: int = 16) -> ctk.CTkIma
         "generate": _draw_sparkles,
         "moon": _draw_moon,
         "sun": _draw_sun,
+        "book": _draw_book,
+        "lexicon": _draw_book,
+        "music": _draw_music,
+        "subtitles": _draw_subtitles,
+        "srt": _draw_subtitles,
+        "compare": _draw_compare,
     }
 
     fn = draw_map.get(name, _draw_gear)

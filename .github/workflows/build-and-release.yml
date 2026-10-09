@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag (z. B. v2.4.4)'
+        description: 'Release Tag (z. B. v3.0.0)'
         required: false
-        default: 'v2.4.4'
+        default: 'v3.0.0'
 
 permissions:
   contents: write
@@ -35,9 +35,10 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller pillow
 
-      - name: Run Document Parser & Batch Tests
+      - name: Run Unit & Integration Tests
         run: |
           python -X utf8 test_batch.py
+          python -X utf8 test_new_features.py
 
       - name: Build Standalone Windows Executable
         run: |

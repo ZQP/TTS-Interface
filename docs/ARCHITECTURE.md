@@ -102,3 +102,33 @@ graph TD
   6. Aktionszone (`action_container`): Einzel- oder Batch-Generierungs-Buttons.
   7. Player-Zone (Fix): Integrierter Player mit Timeline-Scrubbing und Export.
 - **`AutoScrollableFrame`**: Intelligenter Scrollbalken (wird ausgeblendet, wenn alle Elemente ins Fenster passen, und blendet sich bei kleinen Fenstern automatisch ein).
+
+### 2.8 Phonetisches Aussprache-Lexikon (`src/lexicon_service.py`)
+- Verwaltet benutzerdefinierte Ausspracheregeln (`custom_lexicon.json`) für Akronyme, Eigennamen, Abkürzungen und Regex-Ersetzungen.
+- Integriert in `GeminiTTSService.generate_speech`: Wendet aktive Phonetisierungsregeln automatisch vor Chunking und Tag-Übersetzung an.
+- Bietet Echtzeit-Vorschau und Audio-Probe im `LexiconDialog`.
+
+### 2.9 Frame-genaues Untertitel-Studio (`src/subtitle_service.py`)
+- Automatische Cue-Segmentierung basierend auf Silben- und Worttaktung sowie der tatsächlichen Audiodauer.
+- Filterung von non-verbalen Regietags (`clean_subtitle_text`), damit Cues nur reinen Sprechtext enthalten.
+- Lesbarkeits-Metrik (CPS - Characters Per Second):
+  - `<= 15 CPS`: Optimal / Grün
+  - `16-20 CPS`: Gut / Gelb-Orange
+  - `> 20 CPS`: Zu schnell / Rot
+- Exportiert standardkonforme `.srt`- (SubRip UTF-8) und `.vtt`-Dateien (WebVTT).
+
+### 2.10 Multi-Sprecher & Hörspiel-Skript (`src/script_processor.py`)
+- Parst Dialog-Drehbücher im Standardformat `[Sprecher]: (Regieanweisung) Text...`.
+- Automatische Cast-Erkennung (`extract_speakers`) und Zuweisung individueller Stimmen pro Sprecherrolle.
+- Sequentielle Synthese mit konfigurierbaren Sprechpausen (z. B. 350 ms) und nahtlosem WAV-Stitching.
+
+### 2.11 Sidechain Audio-Ducking & Musik (`src/audio_ducking.py`)
+- Mischt Hintergrundmusik (`.mp3`, `.wav`) über FFmpeg-Filtergraphen (`sidechaincompress` oder dynamischen Ducking-Filter) automatisch unter die Sprachspur.
+- Senkt die Musik während der Sprache präzise ab (Standard: -14 dB) und blendet sie am Sprach-Ende sanft aus (2.5s Fade-Out).
+- Optional und standardmäßig deaktiviert, um Audio unverfälscht zu halten.
+
+### 2.12 Take-Historie & A/B-Vergleichs-Labor (`src/history_service.py`)
+- Persistente Erfassung aller generierten Audios der Sitzung in `generation_history.json`.
+- Slot A- und Slot B-Zuweisung für sofortige A/B-Vergleiche bei identischer Wiedergabeposition.
+- Optional und standardmäßig eingeklappt, um API-Kosten zu minimieren.
+
