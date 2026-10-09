@@ -54,6 +54,10 @@ class AudioPlayer:
             self._init_mixer()
 
         self.stop()
+        try:
+            pygame.mixer.music.unload()
+        except Exception:
+            pass
         src_path = Path(file_path).resolve()
         if not src_path.exists():
             raise FileNotFoundError(f"Audiodatei nicht gefunden: {src_path}")
@@ -180,6 +184,10 @@ class AudioPlayer:
         if self._is_initialized and pygame.mixer.get_init():
             try:
                 pygame.mixer.music.stop()
+            except Exception:
+                pass
+            try:
+                pygame.mixer.music.unload()
             except Exception:
                 pass
         self._is_playing = False

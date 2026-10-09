@@ -9,6 +9,8 @@ import io
 import re
 import json
 import requests
+import time
+import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
 
@@ -541,8 +543,8 @@ class GeminiTTSService:
         combined_pcm = b"".join(all_pcm_frames)
         wav_bytes = pcm_to_wav(combined_pcm, sample_rate=24000, channels=1)
 
-        # Save temporary WAV
-        temp_wav_path = TEMP_DIR / f"temp_tts_input_{abs(hash(text)) & 0xFFFFFFFF}.wav"
+        # Save temporary WAV with unique timestamp and uuid to prevent collisions and Windows file lock issues
+        temp_wav_path = TEMP_DIR / f"temp_tts_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}.wav"
         with open(temp_wav_path, "wb") as f:
             f.write(wav_bytes)
 

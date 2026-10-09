@@ -4135,6 +4135,7 @@ class GeminiTTSApp(ctk.CTk):
         
         self.current_generated_wav: Optional[Path] = None
         self.current_converted_file: Optional[Path] = None
+        self.current_generated_text: Optional[str] = None
         self.is_generating = False
         self.is_user_scrubbing = False
         self.is_format_collapsed = True   # Collapsed by default
@@ -4863,6 +4864,20 @@ class GeminiTTSApp(ctk.CTk):
         )
         self.btn_ab_generate.pack(side="left")
 
+        self.btn_ab_generate_both = ctk.CTkButton(
+            ab_action_bar,
+            text="🔄 Beide neu generieren (A & B)",
+            command=lambda: self._start_ab_generation(force_both=True),
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER,
+            hover_color=M3_PRIMARY_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+
         self.ab_gen_status_lbl = ctk.CTkLabel(
             ab_action_bar,
             text="",
@@ -4917,6 +4932,22 @@ class GeminiTTSApp(ctk.CTk):
         )
         self.btn_adopt_a.pack(side="left")
 
+        self.btn_reroll_a = ctk.CTkButton(
+            card_a_acts,
+            text="🔄 Neu",
+            command=lambda: self._start_ab_generation(target_variant="A"),
+            height=28,
+            width=65,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER,
+            hover_color=M3_PRIMARY_CONTAINER,
+            text_color=COLOR_PRIMARY_TEXT,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+        self.btn_reroll_a.pack(side="left", padx=(6, 0))
+
         # Card Variant B Result
         self.ab_card_b = ctk.CTkFrame(self.ab_results_frame, fg_color=M3_SURFACE, corner_radius=10, border_width=1, border_color=M3_OUTLINE_VARIANT)
         self.ab_card_b.grid(row=0, column=1, sticky="nsew", padx=(6, 0), pady=2)
@@ -4957,6 +4988,22 @@ class GeminiTTSApp(ctk.CTk):
             border_color=M3_OUTLINE
         )
         self.btn_adopt_b.pack(side="left")
+
+        self.btn_reroll_b = ctk.CTkButton(
+            card_b_acts,
+            text="🔄 Neu",
+            command=lambda: self._start_ab_generation(target_variant="B"),
+            height=28,
+            width=65,
+            corner_radius=14,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
+            fg_color=M3_SURFACE_CONTAINER,
+            hover_color=M3_PRIMARY_CONTAINER,
+            text_color=COLOR_PRIMARY_TEXT,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+        self.btn_reroll_b.pack(side="left", padx=(6, 0))
 
         # 2C: Multi-Speaker Script & Dialogue Card (Instantiated, packed only in script mode)
         self.script_dialog_card = ctk.CTkFrame(
@@ -5862,13 +5909,13 @@ class GeminiTTSApp(ctk.CTk):
         dur_a = 0.0
         dur_b = 0.0
 
-        # Check if main current_generated_wav matches Variant A
+        # Check if main current_generated_wav matches Variant A for the exact current text
         if self.current_generated_wav and Path(self.current_generated_wav).exists():
             main_voice_id = self._get_selected_voice_id()
-            if main_voice_id == voice_a_id and current_text:
+            if main_voice_id == voice_a_id and current_text and self.current_generated_text == current_text:
                 has_a = True
                 dur_a = self.player.get_duration() or 0.0
-                if not self.ab_cached_a or self.ab_cached_a.get("text") != current_text:
+                if not self.ab_cached_a or self.ab_cached_a.get("text") != current_text or self.ab_cached_a.get("voice") != voice_a_id:
                     self.ab_cached_a = {
                         "text": current_text,
                         "voice": voice_a_id,
@@ -5897,12 +5944,16 @@ class GeminiTTSApp(ctk.CTk):
             self.ab_card_a_dur.configure(text=f"Dauer: {dur_a:.1f}s | Bereit zum Anhören")
             self.btn_listen_a.configure(state="normal")
             self.btn_adopt_a.configure(state="normal")
+            if hasattr(self, "btn_reroll_a"):
+                self.btn_reroll_a.configure(text="🔄 Neu", state="normal")
         else:
             self.ab_status_a_lbl.configure(text="Noch nicht generiert", text_color=COLOR_MUTED_TEXT)
             self.ab_card_a_title.configure(text=f"Variante A: {voice_a_choice.split(' (')[0]}")
             self.ab_card_a_dur.configure(text="Keine Aufnahme vorhanden")
             self.btn_listen_a.configure(state="disabled")
             self.btn_adopt_a.configure(state="disabled")
+            if hasattr(self, "btn_reroll_a"):
+                self.btn_reroll_a.configure(text="✨ Generieren", state="normal")
 
         # Update Badge B
         if has_b:
@@ -5911,24 +5962,38 @@ class GeminiTTSApp(ctk.CTk):
             self.ab_card_b_dur.configure(text=f"Dauer: {dur_b:.1f}s | Bereit zum Anhören")
             self.btn_listen_b.configure(state="normal")
             self.btn_adopt_b.configure(state="normal")
+            if hasattr(self, "btn_reroll_b"):
+                self.btn_reroll_b.configure(text="🔄 Neu", state="normal")
         else:
             self.ab_status_b_lbl.configure(text="Wartet auf Generierung", text_color=COLOR_MUTED_TEXT)
             self.ab_card_b_title.configure(text=f"Variante B: {voice_b_choice.split(' (')[0]}")
             self.ab_card_b_dur.configure(text="Keine Aufnahme vorhanden")
             self.btn_listen_b.configure(state="disabled")
             self.btn_adopt_b.configure(state="disabled")
+            if hasattr(self, "btn_reroll_b"):
+                self.btn_reroll_b.configure(text="✨ Generieren", state="normal")
 
-        # Update Smart CTA Text
-        if has_a and not has_b:
-            self.btn_ab_generate.configure(text="✨ Nur noch Variante B generieren")
-        elif not has_a and has_b:
-            self.btn_ab_generate.configure(text="✨ Nur noch Variante A generieren")
+        # Update Smart CTA Buttons
+        if (has_a and not has_b) or (not has_a and has_b):
+            if has_a and not has_b:
+                self.btn_ab_generate.configure(text="✨ Nur noch Variante B generieren")
+            else:
+                self.btn_ab_generate.configure(text="✨ Nur noch Variante A generieren")
+            self.btn_ab_generate.pack(side="left")
+            if hasattr(self, "btn_ab_generate_both"):
+                self.btn_ab_generate_both.pack(side="left", padx=(8, 0))
         elif has_a and has_b:
             self.btn_ab_generate.configure(text="🔄 Beide Varianten erneut generieren")
+            self.btn_ab_generate.pack(side="left")
+            if hasattr(self, "btn_ab_generate_both"):
+                self.btn_ab_generate_both.pack_forget()
         else:
             self.btn_ab_generate.configure(text="✨ Beide Varianten generieren (A & B)")
+            self.btn_ab_generate.pack(side="left")
+            if hasattr(self, "btn_ab_generate_both"):
+                self.btn_ab_generate_both.pack_forget()
 
-    def _start_ab_generation(self):
+    def _start_ab_generation(self, force_both: bool = False, target_variant: Optional[str] = None):
         """Starts A/B generation, reusing already generated variants if text & voice match."""
         if self.is_generating:
             return
@@ -5952,35 +6017,51 @@ class GeminiTTSApp(ctk.CTk):
             return
 
         # Determine what needs generation
-        needs_a = True
-        needs_b = True
-
-        if self.ab_cached_a and self.ab_cached_a.get("text") == text and self.ab_cached_a.get("voice") == voice_a_id:
-            if self.ab_cached_a.get("wav") and Path(self.ab_cached_a["wav"]).exists():
-                needs_a = False
-        elif self.current_generated_wav and Path(self.current_generated_wav).exists():
-            if self._get_selected_voice_id() == voice_a_id:
-                needs_a = False
-                self.ab_cached_a = {
-                    "text": text,
-                    "voice": voice_a_id,
-                    "voice_label": voice_a_label,
-                    "wav": self.current_generated_wav,
-                    "converted": self.current_converted_file,
-                    "duration": self.player.get_duration() or 0.0
-                }
-
-        if self.ab_cached_b and self.ab_cached_b.get("text") == text and self.ab_cached_b.get("voice") == voice_b_id:
-            if self.ab_cached_b.get("wav") and Path(self.ab_cached_b["wav"]).exists():
-                needs_b = False
-
-        if not needs_a and not needs_b:
-            # Force regeneration if both were already cached and user clicked regenerate
+        if force_both:
+            needs_a = True
+            needs_b = True
+        elif target_variant == "A":
+            needs_a = True
+            needs_b = False
+        elif target_variant == "B":
+            needs_a = False
+            needs_b = True
+        else:
             needs_a = True
             needs_b = True
 
+            if self.ab_cached_a and self.ab_cached_a.get("text") == text and self.ab_cached_a.get("voice") == voice_a_id:
+                if self.ab_cached_a.get("wav") and Path(self.ab_cached_a["wav"]).exists():
+                    needs_a = False
+            elif self.current_generated_wav and Path(self.current_generated_wav).exists() and self.current_generated_text == text:
+                if self._get_selected_voice_id() == voice_a_id:
+                    needs_a = False
+                    self.ab_cached_a = {
+                        "text": text,
+                        "voice": voice_a_id,
+                        "voice_label": voice_a_label,
+                        "wav": self.current_generated_wav,
+                        "converted": self.current_converted_file,
+                        "duration": self.player.get_duration() or 0.0
+                    }
+
+            if self.ab_cached_b and self.ab_cached_b.get("text") == text and self.ab_cached_b.get("voice") == voice_b_id:
+                if self.ab_cached_b.get("wav") and Path(self.ab_cached_b["wav"]).exists():
+                    needs_b = False
+
+            if not needs_a and not needs_b:
+                # Force regeneration if both were already cached and user clicked regenerate
+                needs_a = True
+                needs_b = True
+
         self.is_generating = True
         self.btn_ab_generate.configure(state="disabled", text="Generiere...")
+        if hasattr(self, "btn_ab_generate_both"):
+            self.btn_ab_generate_both.configure(state="disabled")
+        if hasattr(self, "btn_reroll_a"):
+            self.btn_reroll_a.configure(state="disabled")
+        if hasattr(self, "btn_reroll_b"):
+            self.btn_reroll_b.configure(state="disabled")
         self.ab_gen_status_lbl.configure(text="Initialisiere...", text_color="#38BDF8")
 
         thread = threading.Thread(
@@ -6007,7 +6088,7 @@ class GeminiTTSApp(ctk.CTk):
                     language="auto",
                     system_prompt=system_prompt
                 )
-                out_a = single_out_dir / f"ab_variant_A_{int(time.time())}{settings['extension']}"
+                out_a = single_out_dir / f"ab_variant_A_{int(time.time() * 1000)}{settings['extension']}"
                 conv_a = convert_audio(
                     input_file=wav_a,
                     output_file=out_a,
@@ -6037,7 +6118,7 @@ class GeminiTTSApp(ctk.CTk):
                     language="auto",
                     system_prompt=system_prompt
                 )
-                out_b = single_out_dir / f"ab_variant_B_{int(time.time())}{settings['extension']}"
+                out_b = single_out_dir / f"ab_variant_B_{int(time.time() * 1000)}{settings['extension']}"
                 conv_b = convert_audio(
                     input_file=wav_b,
                     output_file=out_b,
@@ -6065,13 +6146,25 @@ class GeminiTTSApp(ctk.CTk):
     def _on_ab_generation_success(self):
         self.is_generating = False
         self.btn_ab_generate.configure(state="normal")
-        self.ab_gen_status_lbl.configure(text="Beide Varianten bereit zum Vergleich!", text_color="#10B981")
+        if hasattr(self, "btn_ab_generate_both"):
+            self.btn_ab_generate_both.configure(state="normal")
+        if hasattr(self, "btn_reroll_a"):
+            self.btn_reroll_a.configure(state="normal")
+        if hasattr(self, "btn_reroll_b"):
+            self.btn_reroll_b.configure(state="normal")
+        self.ab_gen_status_lbl.configure(text="Bereit zum Vergleich!", text_color="#10B981")
         self._update_ab_status_labels()
         self._refresh_ab_ui()
 
     def _on_ab_generation_error(self, err_msg: str):
         self.is_generating = False
         self.btn_ab_generate.configure(state="normal")
+        if hasattr(self, "btn_ab_generate_both"):
+            self.btn_ab_generate_both.configure(state="normal")
+        if hasattr(self, "btn_reroll_a"):
+            self.btn_reroll_a.configure(state="normal")
+        if hasattr(self, "btn_reroll_b"):
+            self.btn_reroll_b.configure(state="normal")
         self.ab_gen_status_lbl.configure(text="Fehler bei der Generierung.", text_color=M3_ERROR)
         self._update_ab_status_labels()
         messagebox.showerror("Fehler beim A/B-Vergleich", f"Die Generierung ist fehlgeschlagen:\n{err_msg}")
@@ -6087,6 +6180,7 @@ class GeminiTTSApp(ctk.CTk):
         conv_p = Path(cached.get("converted", wav_p))
         self.current_generated_wav = wav_p
         self.current_converted_file = conv_p
+        self.current_generated_text = cached.get("text", "")
         self.player.load(wav_p)
         if hasattr(self, "waveform_view"):
             self.waveform_view.load_audio(wav_p)
@@ -6105,6 +6199,7 @@ class GeminiTTSApp(ctk.CTk):
 
         self.current_generated_wav = wav_p
         self.current_converted_file = conv_p
+        self.current_generated_text = cached.get("text", "")
         self.player.load(wav_p)
         if hasattr(self, "waveform_view"):
             self.waveform_view.load_audio(wav_p)
@@ -6310,6 +6405,7 @@ class GeminiTTSApp(ctk.CTk):
             )
             self.current_generated_wav = final_wav
             self.current_converted_file = converted_path
+            self.current_generated_text = script_text
 
             duration = time.time() - start_time
             file_size_kb = converted_path.stat().st_size / 1024.0
@@ -7228,6 +7324,7 @@ class GeminiTTSApp(ctk.CTk):
             )
             self.current_generated_wav = final_wav_path
             self.current_converted_file = converted_path
+            self.current_generated_text = text
 
             duration = time.time() - start_time
             file_size_kb = converted_path.stat().st_size / 1024.0

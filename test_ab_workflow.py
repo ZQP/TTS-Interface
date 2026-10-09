@@ -67,16 +67,31 @@ def test_ab_smart_delta_state():
             wf.setframerate(24000)
             wf.writeframes(b"\x00\x00" * 2400)
 
-    # 2. Simulate Variant A being generated
+    # 2. Simulate Variant A being generated for current text
     fake_wav_a = Path("test_fake_a.wav")
     create_dummy_wav(fake_wav_a)
     app.current_generated_wav = fake_wav_a
+    app.current_generated_text = "Hallo Welt, dies ist ein A/B Test."
     app.voice_var.set("Fenrir (Männlich)")
     app._update_ab_status_labels()
 
     assert "Bereits generiert" in app.ab_status_a_lbl.cget("text")
     assert "Nur noch Variante B generieren" in app.btn_ab_generate.cget("text")
-    print("[+] State 2 (Variant A cached): Smart CTA is 'Nur noch Variante B generieren'!")
+    assert "Beide neu generieren" in app.btn_ab_generate_both.cget("text")
+    print("[+] State 2 (Variant A cached): Smart CTA is 'Nur noch Variante B generieren' + 'Beide neu generieren'!")
+
+    # 2b. Test that changing the text in input invalidates Variant A!
+    app.text_input.delete("0.0", "end")
+    app.text_input.insert("0.0", "Ein völlig neuer Text, der noch nicht vertont wurde.")
+    app._update_ab_status_labels()
+    assert "Noch nicht generiert" in app.ab_status_a_lbl.cget("text")
+    assert "Beide Varianten generieren" in app.btn_ab_generate.cget("text")
+    print("[+] State 2b (Text mismatch): Variant A invalidated, CTA offers generating BOTH tracks!")
+
+    # Revert text for step 3
+    app.text_input.delete("0.0", "end")
+    app.text_input.insert("0.0", "Hallo Welt, dies ist ein A/B Test.")
+    app._update_ab_status_labels()
 
     # 3. Simulate Variant B also cached
     fake_wav_b = Path("test_fake_b.wav")
@@ -98,8 +113,9 @@ def test_ab_smart_delta_state():
     # 4. Test Adopting Variant B
     app._adopt_ab_variant("B")
     assert app.current_generated_wav == fake_wav_b
+    assert app.current_generated_text == "Hallo Welt, dies ist ein A/B Test."
     assert app.voice_var.get() == "Puck (Männlich)"
-    print("[+] State 4 (Adopt Variant B): Main player and voice dropdown updated to Puck!")
+    print("[+] State 4 (Adopt Variant B): Main player, text tracking and voice dropdown updated to Puck!")
 
     # 5. Clean up fake files & app
     try:
