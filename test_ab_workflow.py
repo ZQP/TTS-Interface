@@ -2,8 +2,11 @@
 Unit test for Smart A/B Comparison and Decoupled History Dialog
 """
 
+import os
 import sys
 from pathlib import Path
+
+os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 # Ensure src is in python path
 sys.path.insert(0, str(Path(__file__).resolve().parent))

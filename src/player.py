@@ -30,15 +30,23 @@ class AudioPlayer:
         self._init_mixer()
 
     def _init_mixer(self):
-        """Safely initialize pygame mixer."""
+        """Safely initialize pygame mixer with dummy fallback for headless CI environments."""
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
             pygame.mixer.music.set_volume(self._volume)
             self._is_initialized = True
-        except Exception as e:
-            print(f"Warnung: Audio Mixer konnte nicht initialisiert werden: {e}")
-            self._is_initialized = False
+        except Exception:
+            # Fallback for headless environments without physical audio device (e.g. GitHub Actions, Docker)
+            try:
+                os.environ["SDL_AUDIODRIVER"] = "dummy"
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                pygame.mixer.music.set_volume(self._volume)
+                self._is_initialized = True
+            except Exception as e2:
+                print(f"Warnung: Audio Mixer konnte nicht initialisiert werden: {e2}")
+                self._is_initialized = False
 
     def load(self, file_path: Path | str):
         """Load an audio file for playback."""
@@ -77,9 +85,14 @@ class AudioPlayer:
         # Determine audio duration
         self._duration = self._calculate_duration(self._playback_file)
 
+        if not self._is_initialized:
+            return
+
         try:
             pygame.mixer.music.load(str(self._playback_file))
         except Exception as e:
+            if not self._is_initialized:
+                return
             raise RuntimeError(f"Konnte Audiodatei nicht laden: {e}")
 
     def _calculate_duration(self, path: Path) -> float:
@@ -90,8 +103,10 @@ class AudioPlayer:
                     frames = wf.getnframes()
                     rate = wf.getframerate()
                     return frames / float(rate)
-            sound = pygame.mixer.Sound(str(path))
-            return sound.get_length()
+            if self._is_initialized:
+                sound = pygame.mixer.Sound(str(path))
+                return sound.get_length()
+            return 0.0
         except Exception:
             return 0.0
 
