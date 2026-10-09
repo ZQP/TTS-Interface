@@ -2691,8 +2691,9 @@ class SettingsDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.parent_app = parent
         self.title("Gemini TTS Studio - Einstellungen")
-        self.geometry("780x720")
-        self.minsize(720, 620)
+        self.geometry("820x680")
+        self.minsize(700, 520)
+        self.resizable(True, True)
         apply_app_icon(self)
 
         # Working variables initialized from parent
@@ -2734,9 +2735,9 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         container.pack(padx=16, pady=16, fill="both", expand=True)
 
-        # Header
+        # Header (Pinned to top)
         header = ctk.CTkFrame(container, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=(16, 12))
+        header.pack(side="top", fill="x", padx=20, pady=(16, 12))
 
         title_col = ctk.CTkFrame(header, fg_color="transparent")
         title_col.pack(side="left")
@@ -2771,9 +2772,9 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         close_btn.pack(side="right")
 
-        # Tab Navigation Bar
+        # Tab Navigation Bar (Pinned to top under header)
         nav_bar = ctk.CTkFrame(container, fg_color=M3_SURFACE_CONTAINER, corner_radius=14, height=44)
-        nav_bar.pack(fill="x", padx=20, pady=(0, 12))
+        nav_bar.pack(side="top", fill="x", padx=20, pady=(0, 12))
 
         tabs_info = [
             ("voice", "Stimme & Sprache"),
@@ -2797,26 +2798,16 @@ class SettingsDialog(ctk.CTkToplevel):
             btn.pack(side="left", padx=4, pady=4, fill="x", expand=True)
             self.tab_buttons[tab_id] = btn
 
-        # Tab Content Area
-        self.content_area = ctk.CTkFrame(container, fg_color="transparent")
-        self.content_area.pack(fill="both", expand=True, padx=20, pady=(0, 10))
-
-        # Build individual tab views
-        self._build_tab_voice()
-        self._build_tab_style()
-        self._build_tab_format()
-        self._build_tab_model()
-
-        # Footer Actions
+        # Footer Actions (PINNED TO BOTTOM FIRST so "Einstellungen übernehmen" is ALWAYS 100% visible)
         footer = ctk.CTkFrame(container, fg_color="transparent")
-        footer.pack(fill="x", padx=20, pady=(6, 16))
+        footer.pack(side="bottom", fill="x", padx=20, pady=(10, 16))
 
         reset_btn = ctk.CTkButton(
             footer,
             text="Standardwerte wiederherstellen",
             command=self._reset_defaults,
-            height=36,
-            corner_radius=18,
+            height=38,
+            corner_radius=19,
             font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             fg_color="transparent",
             hover_color=M3_SURFACE_CONTAINER,
@@ -2851,6 +2842,16 @@ class SettingsDialog(ctk.CTkToplevel):
             border_color=M3_OUTLINE
         )
         cancel_btn.pack(side="right")
+
+        # Tab Content Area (Scrollable frame filling remaining vertical space)
+        self.content_area = ctk.CTkScrollableFrame(container, fg_color="transparent")
+        self.content_area.pack(side="top", fill="both", expand=True, padx=20, pady=(0, 8))
+
+        # Build individual tab views
+        self._build_tab_voice()
+        self._build_tab_style()
+        self._build_tab_format()
+        self._build_tab_model()
 
     def _build_tab_voice(self):
         f = ctk.CTkFrame(self.content_area, fg_color="transparent")
@@ -3573,6 +3574,12 @@ class SettingsDialog(ctk.CTkToplevel):
             else:
                 frame.pack_forget()
 
+        if hasattr(self.content_area, "_parent_canvas"):
+            try:
+                self.content_area._parent_canvas.yview_moveto(0.0)
+            except Exception:
+                pass
+
         for name, btn in self.tab_buttons.items():
             if name == tab_name:
                 btn.configure(
@@ -3869,7 +3876,7 @@ class GeminiTTSApp(ctk.CTk):
         self.is_tags_collapsed = True     # Tags under main text field collapsed by default
         self.is_batch_lang_collapsed = True # Collapsed by default
         self.current_mode = "single"       # "single" or "batch"
-        self.batch_output_dir = OUTPUT_DIR / "batch_exports"
+        self.batch_output_dir = get_output_dir() / "batch_exports"
 
         # Voice & Language State
         self.voice_categories = ["Alle Stimmen", "Eigene & Geklonte Stimmen", "Favoriten & Allrounder", "Deutsche Stimmen & Rollen", "Erzähler & Storytelling"]
@@ -5102,7 +5109,7 @@ class GeminiTTSApp(ctk.CTk):
             border_width=1.5,
             border_color=M3_OUTLINE_VARIANT
         )
-        player_card.pack(fill="x", pady=(0, 4))
+        player_card.pack(fill="x", pady=(0, 16))
 
         player_header_row = ctk.CTkFrame(player_card, fg_color="transparent")
         player_header_row.pack(fill="x", padx=18, pady=(6, 2))
@@ -5711,7 +5718,12 @@ class GeminiTTSApp(ctk.CTk):
             self.current_generated_wav = final_wav
 
             on_script_progress(0.96, "Konvertiere Dialog in Zielformat...")
-            out_file = OUTPUT_DIR / f"dialogue_output_{int(time.time())}{settings['extension']}"
+            dialogue_out_dir = get_output_dir()
+            try:
+                dialogue_out_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+            out_file = dialogue_out_dir / f"dialogue_output_{int(time.time())}{settings['extension']}"
 
             converted_path = convert_audio(
                 input_file=final_wav,
@@ -6617,7 +6629,12 @@ class GeminiTTSApp(ctk.CTk):
 
             self._update_generation_progress(0.95, "Konvertiere Audio in Zielformat...")
             
-            output_converted_path = OUTPUT_DIR / f"tts_output_{int(time.time())}{settings['extension']}"
+            single_out_dir = get_output_dir()
+            try:
+                single_out_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+            output_converted_path = single_out_dir / f"tts_output_{int(time.time())}{settings['extension']}"
             
             converted_path = convert_audio(
                 input_file=final_wav_path,
@@ -6688,7 +6705,11 @@ class GeminiTTSApp(ctk.CTk):
         self.is_generating = False
         self.progress_bar.pack_forget()
         self.generate_btn.configure(state="normal", text="Audio generieren", image=get_ui_icon("sparkles", "white", 16))
-        self.status_lbl.configure(text=f"Fehler: {err_msg}", text_color="#EF4444")
+        # Keep status label concise and single-line
+        first_line = err_msg.strip().splitlines()[0] if err_msg.strip() else "Fehler aufgetreten"
+        if len(first_line) > 90:
+            first_line = first_line[:87] + "..."
+        self.status_lbl.configure(text=f"Fehler: {first_line}", text_color="#EF4444")
         messagebox.showerror("Fehler bei Sprachgenerierung", err_msg)
 
     # ------------------ Audio Player Controls & Scrubbing ------------------

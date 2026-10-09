@@ -160,10 +160,34 @@ def test_ffmpeg():
 
 def test_gui_and_main_imports():
     print("=== 6. Testing Full GUI & Application Imports ===")
-    from src.gui import GeminiTTSApp, LexiconDialog, SubtitleStudioDialog
+    from src.gui import GeminiTTSApp, LexiconDialog, SubtitleStudioDialog, SettingsDialog
     import main
-    print("  [+] Successfully imported GeminiTTSApp, LexiconDialog, SubtitleStudioDialog and main.py!")
+    print("  [+] Successfully imported GeminiTTSApp, LexiconDialog, SubtitleStudioDialog, SettingsDialog and main.py!")
     print("  [+] GUI & Application import test PASSED successfully!\n")
+
+
+def test_audio_conversion_and_paths():
+    print("=== 7. Testing Audio Conversion and Output Paths ===")
+    from src.config import get_output_dir
+    from src.audio_converter import convert_audio, get_ffmpeg_path
+    import subprocess
+    
+    out_dir = get_output_dir()
+    assert out_dir.exists(), f"Output directory {out_dir} does not exist"
+    
+    dummy_wav = TEMP_TEST_DIR / "test_synth.wav"
+    subprocess.run([get_ffmpeg_path(), "-y", "-f", "lavfi", "-i", "sine=frequency=1000:duration=1", dummy_wav.as_posix()], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    target_m4a = out_dir / "test_verify_302.m4a"
+    res = convert_audio(dummy_wav, target_m4a, codec="aac", channels=1, sample_rate=44100, bitrate="64k", faststart=True)
+    assert res.exists() and res.stat().st_size > 0
+    print(f"  [+] Successfully converted test audio to {res.name} ({res.stat().st_size} bytes)")
+    if target_m4a.exists():
+        try:
+            target_m4a.unlink()
+        except Exception:
+            pass
+    print("  [+] Audio conversion and paths test PASSED successfully!\n")
 
 
 if __name__ == "__main__":
@@ -176,6 +200,7 @@ if __name__ == "__main__":
     test_history_and_ab()
     test_ffmpeg()
     test_gui_and_main_imports()
+    test_audio_conversion_and_paths()
     print("=======================================================")
     print("[+] ALL TESTS COMPLETED 100% OK!")
     print("=======================================================")

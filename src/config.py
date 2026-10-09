@@ -55,6 +55,11 @@ else:
     DEFAULT_OUTPUT_DIR = user_music if (Path.home() / "Music").exists() else user_docs
 
 try:
+    DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
+
+try:
     APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:
     APP_DATA_DIR = BASE_DIR
@@ -124,7 +129,7 @@ def get_output_dir() -> Path:
         p.mkdir(parents=True, exist_ok=True)
         return p
     except OSError:
-        fallback = BASE_DIR / "output"
+        fallback = APP_DATA_DIR / "output"
         try:
             fallback.mkdir(parents=True, exist_ok=True)
             return fallback
@@ -233,7 +238,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
     load_dotenv(Path.cwd() / ".env")
 
 # Application & Update Configuration
-APP_VERSION = "3.0.1"
+APP_VERSION = "3.0.2"
 GITHUB_REPO = "ZQP/TTS-Interface"
 
 # API Configuration

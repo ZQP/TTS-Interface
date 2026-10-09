@@ -2,7 +2,7 @@
 Build script to compile both the Windows Executable and the Non-Admin Inno Setup Installer.
 Generates:
 1. dist/GeminiTTSStudio.exe (Standalone Portable EXE)
-2. dist/installer/GeminiTTSStudio-Setup-3.0.1.exe (Non-Admin Windows Setup Installer)
+2. dist/installer/GeminiTTSStudio-Setup-3.0.2.exe (Non-Admin Windows Setup Installer)
 """
 
 import os

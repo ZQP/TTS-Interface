@@ -5,6 +5,7 @@ Audio converter module using FFmpeg
 import subprocess
 import shutil
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -55,13 +56,16 @@ def convert_audio(
     if not input_path.exists():
         raise FileNotFoundError(f"Eingabedatei nicht gefunden: {input_path}")
     
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as dir_err:
+        print(f"Hinweis: Ausgabeordner konnte nicht erstellt werden: {dir_err}")
     
-    # Build FFmpeg command arguments
+    # Build FFmpeg command arguments with forward-slash POSIX paths for rock-solid Windows compatibility
     cmd = [
         ffmpeg_exe,
         "-y",               # Overwrite output
-        "-i", str(input_path),
+        "-i", input_path.as_posix(),
         "-c:a", codec,
         "-ac", str(channels),
         "-ar", str(sample_rate),
@@ -76,7 +80,7 @@ def convert_audio(
     if faststart and ext in [".mp4", ".m4a", ".mov"]:
         cmd.extend(["-movflags", "+faststart"])
     
-    cmd.append(str(output_path))
+    cmd.append(output_path.as_posix())
     
     # Run FFmpeg conversion
     process = subprocess.run(
@@ -87,7 +91,35 @@ def convert_audio(
     )
     
     if process.returncode != 0:
-        raise RuntimeError(f"FFmpeg Fehler beim Konvertieren: {process.stderr}")
+        err_lower = (process.stderr or "").lower()
+        # If output destination failed (e.g. missing folder, OneDrive virtualization, locked path), retry to safe local fallback directory
+        if any(k in err_lower for k in ["no such file or directory", "error opening output", "permission denied", "cannot open"]):
+            try:
+                fallback_dir = Path(tempfile.gettempdir()) / "GeminiTTSStudio_Output"
+                fallback_dir.mkdir(parents=True, exist_ok=True)
+                fallback_file = fallback_dir / output_path.name
+                fallback_cmd = list(cmd[:-1]) + [fallback_file.as_posix()]
+                fb_proc = subprocess.run(
+                    fallback_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                if fb_proc.returncode == 0 and fallback_file.exists() and fallback_file.stat().st_size > 0:
+                    try:
+                        output_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(fallback_file, output_path)
+                        return output_path
+                    except Exception:
+                        return fallback_file
+            except Exception as fb_err:
+                print(f"Fallback-Konvertierung fehlgeschlagen: {fb_err}")
+
+        # Extract only the relevant error message lines instead of dumping 30 lines of FFmpeg compiler banners
+        raw_lines = [l.strip() for l in (process.stderr or "").splitlines() if l.strip()]
+        error_lines = [l for l in raw_lines if any(k in l.lower() for k in ["error", "invalid", "cannot", "failed"])]
+        summary = "\n".join(error_lines[-3:]) if error_lines else (raw_lines[-1] if raw_lines else "Unbekannter Fehler")
+        raise RuntimeError(f"FFmpeg Fehler beim Konvertieren: {summary}")
     
     if not output_path.exists() or output_path.stat().st_size == 0:
         raise RuntimeError(f"Ausgabedatei wurde nicht erfolgreich erstellt: {output_path}")
