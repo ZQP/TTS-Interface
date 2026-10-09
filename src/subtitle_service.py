@@ -222,7 +222,76 @@ def parse_srt_content(srt_text: str) -> List[SubtitleCue]:
             idx = int(match.group(1))
             start_sec = parse_timestamp(match.group(2))
             end_sec = parse_timestamp(match.group(3))
-            cue_text = match.group(4).strip()
-            cues.append(SubtitleCue(idx, start_sec, end_sec, cue_text))
-
     return cues
+
+
+def generate_subtitle_cues(text: str, total_audio_duration_sec: float = 10.0) -> List[Dict[str, Any]]:
+    """Generates subtitle cues dictionary format for UI tables and export."""
+    cues = generate_cues_from_text_and_duration(text, total_audio_duration_sec)
+    res = []
+    for c in cues:
+        d = c.to_dict()
+        d["start"] = d.get("start_srt", format_timestamp_srt(c.start_time))
+        d["end"] = d.get("end_srt", format_timestamp_srt(c.end_time))
+        res.append(d)
+    return res
+
+
+def calculate_cps(text: str, duration: float) -> float:
+    """Calculates Characters Per Second (CPS) rate for a given text snippet."""
+    if duration <= 0:
+        return 0.0
+    return round(len(text) / duration, 1)
+
+
+def cues_to_srt(cues: List[Any], output_path: Path) -> Path:
+    """Exports list of cue dicts or SubtitleCue objects to .srt."""
+    subtitle_cues = []
+    for idx, c in enumerate(cues):
+        if isinstance(c, SubtitleCue):
+            subtitle_cues.append(c)
+        elif isinstance(c, dict):
+            s_val = c.get("start") or c.get("start_time") or 0
+            e_val = c.get("end") or c.get("end_time") or 0
+            s_sec = parse_timestamp(str(s_val)) if isinstance(s_val, str) else float(s_val)
+            e_sec = parse_timestamp(str(e_val)) if isinstance(e_val, str) else float(e_val)
+            subtitle_cues.append(SubtitleCue(
+                index=c.get("index", idx + 1),
+                start_time=s_sec,
+                end_time=e_sec,
+                text=c.get("text", "")
+            ))
+    return export_srt_file(subtitle_cues, output_path)
+
+
+def cues_to_vtt(cues: List[Any], output_path: Path) -> Path:
+    """Exports list of cue dicts or SubtitleCue objects to .vtt."""
+    subtitle_cues = []
+    for idx, c in enumerate(cues):
+        if isinstance(c, SubtitleCue):
+            subtitle_cues.append(c)
+        elif isinstance(c, dict):
+            s_val = c.get("start") or c.get("start_time") or 0
+            e_val = c.get("end") or c.get("end_time") or 0
+            s_sec = parse_timestamp(str(s_val)) if isinstance(s_val, str) else float(s_val)
+            e_sec = parse_timestamp(str(e_val)) if isinstance(e_val, str) else float(e_val)
+            subtitle_cues.append(SubtitleCue(
+                index=c.get("index", idx + 1),
+                start_time=s_sec,
+                end_time=e_sec,
+                text=c.get("text", "")
+            ))
+    return export_vtt_file(subtitle_cues, output_path)
+
+
+def parse_srt(srt_text: str) -> List[Dict[str, Any]]:
+    """Parses SRT format string into list of cue dictionaries."""
+    cues = parse_srt_content(srt_text)
+    res = []
+    for c in cues:
+        d = c.to_dict()
+        d["start"] = d.get("start_srt", format_timestamp_srt(c.start_time))
+        d["end"] = d.get("end_srt", format_timestamp_srt(c.end_time))
+        res.append(d)
+    return res
+

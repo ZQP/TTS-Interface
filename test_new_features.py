@@ -13,18 +13,38 @@ from pathlib import Path
 # Ensure root directory is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.lexicon_service import apply_lexicon, add_lexicon_entry, load_lexicon
+from src.lexicon_service import (
+    apply_lexicon,
+    add_lexicon_entry,
+    load_lexicon,
+    save_lexicon,
+    update_lexicon_entry,
+    delete_lexicon_entry,
+    reset_lexicon_to_defaults
+)
 from src.subtitle_service import (
     clean_subtitle_text,
     generate_cues_from_text_and_duration,
+    generate_subtitle_cues,
+    calculate_cps,
+    cues_to_srt,
+    cues_to_vtt,
+    parse_srt,
     export_srt_file,
     export_vtt_file,
     format_timestamp_srt,
     format_timestamp_vtt
 )
-from src.script_processor import parse_script, extract_unique_speakers
-from src.history_service import log_generation, get_ab_slots, set_ab_slot, load_history
+from src.script_processor import (
+    parse_script,
+    extract_unique_speakers,
+    extract_speakers,
+    synthesize_dialogue_script
+)
+from src.history_service import log_generation, get_ab_slots, set_ab_slot, load_history, clear_history
+from src.audio_ducking import apply_audio_ducking
 from src.audio_converter import get_ffmpeg_path
+
 
 TEMP_TEST_DIR = Path("temp")
 TEMP_TEST_DIR.mkdir(exist_ok=True)
@@ -137,15 +157,25 @@ def test_ffmpeg():
     print("  [+] FFmpeg path verification PASSED successfully!\n")
 
 
+def test_gui_and_main_imports():
+    print("=== 6. Testing Full GUI & Application Imports ===")
+    from src.gui import GeminiTTSApp, LexiconDialog, SubtitleStudioDialog
+    import main
+    print("  [+] Successfully imported GeminiTTSApp, LexiconDialog, SubtitleStudioDialog and main.py!")
+    print("  [+] GUI & Application import test PASSED successfully!\n")
+
+
 if __name__ == "__main__":
     print("=======================================================")
-    print("=== RUNNING GEMINI TTS STUDIO v3.0.0 FEATURE TESTS ===")
+    print("=== RUNNING GEMINI TTS STUDIO FEATURE TESTS ===")
     print("=======================================================\n")
     test_lexicon()
     test_subtitles()
     test_script_processor()
     test_history_and_ab()
     test_ffmpeg()
+    test_gui_and_main_imports()
     print("=======================================================")
-    print("[+] ALL 5 NEW BACKEND MODULE TESTS COMPLETED 100% OK!")
+    print("[+] ALL TESTS COMPLETED 100% OK!")
     print("=======================================================")
+

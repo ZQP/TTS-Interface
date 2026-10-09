@@ -233,7 +233,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
     load_dotenv(Path.cwd() / ".env")
 
 # Application & Update Configuration
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.0.1"
 GITHUB_REPO = "ZQP/TTS-Interface"
 
 # API Configuration

@@ -111,6 +111,12 @@ def save_lexicon(rules: List[Dict[str, Any]]) -> bool:
             return False
 
 
+def reset_lexicon_to_defaults() -> List[Dict[str, Any]]:
+    """Reset lexicon to factory default starter rules and persist."""
+    save_lexicon(DEFAULT_LEXICON_ENTRIES)
+    return list(DEFAULT_LEXICON_ENTRIES)
+
+
 def add_lexicon_entry(term: str, replacement: str, entry_type: str = "benutzer",
                       case_sensitive: bool = False, is_regex: bool = False) -> Dict[str, Any]:
     """Add a new entry to the lexicon and persist."""

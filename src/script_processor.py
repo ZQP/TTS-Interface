@@ -157,8 +157,8 @@ def generate_multi_speaker_audio(
         turn_wav_path = tts_service.generate_speech(
             text=turn.text,
             voice_name=voice_name,
-            model=default_model,
-            system_instruction=system_instruction,
+            model=default_model or "gemini-3.8-flash-tts",
+            system_prompt=system_instruction,
             language=language
         )
 
@@ -177,7 +177,6 @@ def generate_multi_speaker_audio(
             pass
 
     # Stitch all turns together into master WAV
-    master_wav_path = TEMP_DIR / f"multispeaker_master_{int(TEMP_DIR.stat().st_mtime if TEMP_DIR.exists() else 0)}.wav"
     import time
     master_wav_path = TEMP_DIR / f"multispeaker_{int(time.time()*1000)}.wav"
 
@@ -193,3 +192,36 @@ def generate_multi_speaker_audio(
                 master_wf.writeframes(silence_gap)
 
     return master_wav_path
+
+
+extract_speakers = extract_unique_speakers
+
+
+def synthesize_dialogue_script(
+    script_text: str,
+    speaker_voice_map: Dict[str, str],
+    pause_duration_ms: int = 350,
+    progress_callback: Optional[Callable[[float, str], None]] = None,
+    tts_service: Optional[GeminiTTSService] = None
+) -> Path:
+    """Convenience wrapper for synthesizing a dialogue script with speaker-to-voice mapping."""
+    if tts_service is None:
+        tts_service = GeminiTTSService()
+
+    cast_map = {}
+    for spk, v in speaker_voice_map.items():
+        cast_map[spk] = {"voice": v}
+
+    def adapter(cur: int, tot: int, msg: str):
+        if progress_callback:
+            frac = cur / max(1, tot)
+            progress_callback(frac, msg)
+
+    return generate_multi_speaker_audio(
+        script_text=script_text,
+        cast_map=cast_map,
+        tts_service=tts_service,
+        progress_callback=adapter,
+        pause_between_speakers_ms=pause_duration_ms
+    )
+
