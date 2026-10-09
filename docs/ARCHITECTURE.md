@@ -56,9 +56,11 @@ graph TD
 ### 2.3 Backend & TTS Engine (`src/tts_service.py`)
 - **API-Endpunkt**: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}`
 - **Modelle**:
-  - `gemini-3.1-flash-tts-preview` (Standard): Schnellste Generierung mit nativer Audioausgabe.
+  - `gemini-3.8-flash-tts` (Standard): Studio-Qualität & Flaggschiff-Modell.
+  - `gemini-3.8-flash-lite-tts`: High-Speed & Massenverarbeitung.
+  - `gemini-3.1-flash-tts-preview`: Bewährte Version.
   - `gemini-2.5-flash-preview-tts` (Automatischer Fallback): Robuste Fallback-Engine bei Streaming-Hiccups.
-  - `gemini-2.5-pro-preview-tts`: Studio-Qualität.
+  - `gemini-2.5-pro-preview-tts`: Vorgänger Studio-Qualität.
 - **Audio-Tags / Regieanweisungen**:
   - Inline-Tags (`[laugh]`, `[whisper]`, `[sad]`, `[excited]`, `[pause]`, `[sigh]`, `[slow]`, `[fast]`).
   - Deutsches Tag-Mapping (`TAG_REPLACEMENTS`) übersetzt `[lachen]` etc. automatisch.

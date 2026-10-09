@@ -47,10 +47,10 @@ Dieses Dokument richtet sich an nachfolgende **KI-Agenten (Gemini, Claude, GPT, 
 
 ## 3. Bekannte Fallstricke & API-Besonderheiten
 
-- **Gemini TTS Preview Endpunkte**: `gemini-3.1-flash-tts-preview` und `gemini-2.5-flash-preview-tts` akzeptieren **keine** `systemInstruction` im Payload (wirft sonst API-Fehler `Developer instruction is not enabled for this model`). Regieanweisungen/Sprechstile werden jedoch nativ verarbeitet, wenn sie als `[Tone: ...]` am Anfang jedes Chunks mitgegeben werden. Das Modell liest diese nicht vor, sondern setzt sie als Sprechstil um!
+- **Gemini TTS Endpunkte**: `gemini-3.8-flash-tts`, `gemini-3.8-flash-lite-tts`, `gemini-3.1-flash-tts-preview` und `gemini-2.5-flash-preview-tts` akzeptieren **keine** `systemInstruction` im Payload (wirft sonst API-Fehler `Developer instruction is not enabled for this model`). Regieanweisungen/Sprechstile werden jedoch nativ verarbeitet, wenn sie als `[Tone: ...]` am Anfang jedes Chunks mitgegeben werden. Das Modell liest diese nicht vor, sondern setzt sie als Sprechstil um!
 - **Timeouts bei langen Texten**: Die Smart-Chunking-Engine in `src/tts_service.py` zerlegt Texte an Satzgrenzen in Blöcke à ~300 Zeichen und konkateniert die resultierenden PCM-Bytes nahtlos.
 - **PyInstaller Bundling & Assets**: `build_exe.py` sammelt `--collect-all=customtkinter`, `--collect-all=imageio_ffmpeg`, `--collect-all=pygame`, `--collect-all=pypdf`, `--collect-all=docx`, bindet das neue App-Icon ein (`--icon=assets/icon.ico`) und kopiert Assets (`--add-data=assets;assets`).
-- **Inno Setup Windows Installer**: `build_installer.py` und `installer.iss` erzeugen einen vollwertigen Windows-Installer (`dist/installer/GeminiTTSStudio-Setup-2.3.1.exe`) mit `PrivilegesRequired=lowest` (Installation in `%LOCALAPPDATA%\Programs\GeminiTTSStudio` ohne UAC-Elevation).
+- **Inno Setup Windows Installer**: `build_installer.py` und `installer.iss` erzeugen einen vollwertigen Windows-Installer (`dist/installer/GeminiTTSStudio-Setup-2.4.3.exe`) mit `PrivilegesRequired=lowest` (Installation in `%LOCALAPPDATA%\Programs\GeminiTTSStudio` ohne UAC-Elevation).
 - **Dateipfade & Windows-Standards**: Das Programm legt keine temporären oder Ausgabedateien im Programmordner ab. Konfiguration liegt in `%APPDATA%\GeminiTTSStudio`, Temp-Audios in `%LOCALAPPDATA%\GeminiTTSStudio\temp`, Ausgabedateien im Standard-Musikordner (`~/Music/Gemini TTS Studio`). Automatische Migration älterer Dateien wird beim Start ausgeführt.
 
 ---

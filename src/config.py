@@ -54,8 +54,19 @@ else:
     user_docs = Path.home() / "Documents" / "Gemini TTS Studio"
     DEFAULT_OUTPUT_DIR = user_music if (Path.home() / "Music").exists() else user_docs
 
-APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    APP_DATA_DIR = BASE_DIR
+
+try:
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    TEMP_DIR = BASE_DIR / "temp"
+    try:
+        TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
 
 ENV_FILE = APP_DATA_DIR / ".env"
 CUSTOM_STYLES_FILE = APP_DATA_DIR / "custom_styles.json"
@@ -109,11 +120,25 @@ def get_output_dir() -> Path:
     settings = load_app_settings()
     out_str = settings.get("output_dir", str(DEFAULT_OUTPUT_DIR))
     p = Path(out_str)
-    p.mkdir(parents=True, exist_ok=True)
-    return p
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    except OSError:
+        fallback = BASE_DIR / "output"
+        try:
+            fallback.mkdir(parents=True, exist_ok=True)
+            return fallback
+        except OSError:
+            temp_out = TEMP_DIR / "output"
+            temp_out.mkdir(parents=True, exist_ok=True)
+            return temp_out
 
 def set_output_dir(path: Path):
     """Update active output directory for exported audio files."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
     settings = load_app_settings()
     settings["output_dir"] = str(path.resolve())
     save_app_settings(settings)

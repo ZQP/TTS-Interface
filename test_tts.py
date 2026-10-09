@@ -27,7 +27,7 @@ def test_tts_and_conversion():
     wav_path = service.generate_speech(
         text=test_text,
         voice_name="Puck",
-        model="gemini-2.5-flash-preview-tts",
+        model="gemini-3.8-flash-tts",
         language="de"
     )
     print(f"Generated WAV file: {wav_path} (Size: {wav_path.stat().st_size} bytes)")
