@@ -73,7 +73,7 @@ python build_exe.py
 *(Oder per Doppelklick auf `build.bat` ausführen.)*
 
 ### 2. Windows Installationsprogramm (Inno Setup) erstellen
-Erstellt einen vollwertigen Windows-Installer (`dist/installer/GeminiTTSStudio-Setup-2.4.3.exe`), der **ohne Administratorrechte** im Benutzerprofil installiert werden kann:
+Erstellt einen vollwertigen Windows-Installer (`dist/installer/GeminiTTSStudio-Setup-2.4.4.exe`), der **ohne Administratorrechte** im Benutzerprofil installiert werden kann:
 ```bash
 python build_installer.py
 ```
