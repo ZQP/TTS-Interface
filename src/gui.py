@@ -4190,7 +4190,6 @@ class GeminiTTSApp(ctk.CTk):
 
     def __init__(self):
         super().__init__()
-        self.withdraw()
 
         self.title("Gemini TTS Studio - Windows Interface")
         self.geometry("1020x720")
@@ -4297,8 +4296,6 @@ class GeminiTTSApp(ctk.CTk):
         # Start silent background update check after 2 seconds
         threading.Thread(target=self._check_for_updates_background, daemon=True).start()
 
-        self.update_idletasks()
-        self.deiconify()
         self.protocol("WM_DELETE_WINDOW", self._on_app_close)
 
     def _on_app_close(self):
