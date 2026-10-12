@@ -85,6 +85,16 @@ def format_release_notes(raw_notes: str) -> str:
         # List items (- or *)
         if stripped.startswith("- ") or stripped.startswith("* "):
             content = clean_md(stripped[2:].strip())
+            # Translate conventional commit prefixes and clean technical artifacts
+            content = re.sub(r"\s*\(v\d+\.\d+(\.\d+)?\)\s*$", "", content).strip()
+            content = re.sub(r"^(feat|feature)(\([^)]+\))?:\s*", "Neu: ", content, flags=re.IGNORECASE)
+            content = re.sub(r"^(fix|bugfix)(\([^)]+\))?:\s*", "Behoben: ", content, flags=re.IGNORECASE)
+            content = re.sub(r"^(perf|performance)(\([^)]+\))?:\s*", "Optimierung: ", content, flags=re.IGNORECASE)
+            content = re.sub(r"^(refactor|improve)(\([^)]+\))?:\s*", "Verbesserung: ", content, flags=re.IGNORECASE)
+            content = re.sub(r"^(docs)(\([^)]+\))?:\s*", "Dokumentation: ", content, flags=re.IGNORECASE)
+            content = re.sub(r"^(style|ui)(\([^)]+\))?:\s*", "Design & UI: ", content, flags=re.IGNORECASE)
+            content = re.sub(r"^(chore)(\([^)]+\))?:\s*", "Wartung: ", content, flags=re.IGNORECASE)
+
             indent_prefix = "      " if indent_level >= 2 else "   "
             bullet = "– " if indent_level >= 2 else "• "
             cleaned_lines.append(f"{indent_prefix}{bullet}{content}")
@@ -151,8 +161,14 @@ class UpdateService:
                         for c in commits:
                             msg = c.get("commit", {}).get("message", "").strip()
                             first_line = msg.split("\n")[0].strip()
-                            cleaned = re.sub(r"^(feat|fix|perf|refactor|docs|chore)(\([^)]+\))?:\s*", "", first_line)
-                            cleaned = cleaned[:1].upper() + cleaned[1:] if cleaned else first_line
+                            first_line = re.sub(r"\s*\(v\d+\.\d+(\.\d+)?\)\s*$", "", first_line).strip()
+                            cleaned = re.sub(r"^(feat|feature)(\([^)]+\))?:\s*", "Neu: ", first_line, flags=re.IGNORECASE)
+                            cleaned = re.sub(r"^(fix|bugfix)(\([^)]+\))?:\s*", "Behoben: ", cleaned, flags=re.IGNORECASE)
+                            cleaned = re.sub(r"^(perf|performance)(\([^)]+\))?:\s*", "Optimierung: ", cleaned, flags=re.IGNORECASE)
+                            cleaned = re.sub(r"^(refactor|improve)(\([^)]+\))?:\s*", "Verbesserung: ", cleaned, flags=re.IGNORECASE)
+                            cleaned = re.sub(r"^(docs)(\([^)]+\))?:\s*", "Dokumentation: ", cleaned, flags=re.IGNORECASE)
+                            cleaned = re.sub(r"^(style|ui)(\([^)]+\))?:\s*", "Design & UI: ", cleaned, flags=re.IGNORECASE)
+                            cleaned = re.sub(r"^(chore)(\([^)]+\))?:\s*", "Wartung: ", cleaned, flags=re.IGNORECASE)
                             notes_lines.append(f"- {cleaned}")
                         return "\n".join(notes_lines)
         except Exception:

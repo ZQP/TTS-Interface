@@ -64,12 +64,29 @@ jobs:
         shell: pwsh
         run: |
           $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
+          $commitsRaw = if ($prevTag) { git log --pretty=format:"%s" "$prevTag..HEAD" } else { git log -n 10 --pretty=format:"%s" }
+          
+          # Clean and Germanize conventional commit prefixes
+          $cleanedCommits = @()
+          foreach ($c in ($commitsRaw -split "`n")) {
+              $line = $c.Trim()
+              if (-not $line) { continue }
+              $line = $line -replace '\s*\(v\d+\.\d+(\.\d+)?\)\s*$', ''
+              $line = $line -replace '^(feat|feature)(\([^)]+\))?:\s*', '✨ Neu: '
+              $line = $line -replace '^(fix|bugfix)(\([^)]+\))?:\s*', '🐛 Behoben: '
+              $line = $line -replace '^(perf|performance)(\([^)]+\))?:\s*', '⚡ Optimierung: '
+              $line = $line -replace '^(refactor|improve)(\([^)]+\))?:\s*', '🔧 Verbesserung: '
+              $line = $line -replace '^(docs)(\([^)]+\))?:\s*', '📖 Dokumentation: '
+              $line = $line -replace '^(style|ui)(\([^)]+\))?:\s*', '🎨 Design & UI: '
+              $line = $line -replace '^(chore)(\([^)]+\))?:\s*', '⚙️ Wartung: '
+              $cleanedCommits += "* $line"
+          }
+          $commitsText = $cleanedCommits -join "`n"
+
           if ($prevTag) {
-              $commits = git log --pretty=format:"* %s" "$prevTag..HEAD"
-              $content = "### 🚀 Neuerungen & Verbesserungen in dieser Version`n`n$commits`n`n---`n**Full Changelog**: https://github.com/${{ github.repository }}/compare/$prevTag...${{ github.ref_name }}"
+              $content = "### 🚀 Neuerungen & Verbesserungen in dieser Version`n`n$commitsText`n`n---`n**Changelog**: https://github.com/${{ github.repository }}/compare/$prevTag...${{ github.ref_name }}"
           } else {
-              $commits = git log -n 10 --pretty=format:"* %s"
-              $content = "### 🚀 Neuerungen & Verbesserungen in dieser Version`n`n$commits"
+              $content = "### 🚀 Neuerungen & Verbesserungen in dieser Version`n`n$commitsText"
           }
           [System.IO.File]::WriteAllText("release_notes.md", $content, [System.Text.Encoding]::UTF8)
 
