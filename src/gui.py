@@ -354,18 +354,20 @@ class MaterialSegmentedControl(ctk.CTkFrame):
         self.grid_columnconfigure(tuple(range(len(values))), weight=1)
 
         for i, val in enumerate(values):
+            is_active = (val == self.current_value)
             btn = ctk.CTkButton(
                 self,
                 text=val,
                 height=height - 8,
                 corner_radius=19,
                 font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+                fg_color=M3_PRIMARY if is_active else "transparent",
+                hover_color=M3_PRIMARY_HOVER if is_active else ("#E0ECE9", "#243834"),
+                text_color=("#FFFFFF", "#00201C") if is_active else COLOR_PRIMARY_TEXT,
                 command=lambda v=val: self.set(v)
             )
             btn.grid(row=0, column=i, padx=4, pady=4, sticky="nsew")
             self.buttons.append((val, btn))
-
-        self._update_button_styles()
 
     def set(self, value: str):
         self.current_value = value
@@ -712,6 +714,7 @@ class LexiconDialog(ctk.CTkToplevel):
 
     def __init__(self, parent: "GeminiTTSApp"):
         super().__init__(parent)
+        self.withdraw()
         self.parent_app = parent
         self.tts_service = parent.tts_service
         self.title("Gemini TTS Studio - Aussprache-Lexikon & Phonetisches Wörterbuch")
@@ -729,15 +732,16 @@ class LexiconDialog(ctk.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.transient(parent)
         self.grab_set()
+        self.update_idletasks()
+        self.deiconify()
 
     def _on_close(self):
         try:
             self.preview_player.stop()
+            self.grab_release()
         except Exception:
             pass
-        if self.parent_app:
-            self.parent_app.lexicon_dialog = None
-        self.destroy()
+        self.withdraw()
 
     def _build_ui(self):
         container = ctk.CTkFrame(
@@ -1182,6 +1186,7 @@ class HistoryDialog(ctk.CTkToplevel):
 
     def __init__(self, parent: "GeminiTTSApp"):
         super().__init__(parent)
+        self.withdraw()
         self.parent_app = parent
         self.title("Gemini TTS Studio - Take-Verlauf der Sitzung")
         self.geometry("900x620")
@@ -1196,15 +1201,16 @@ class HistoryDialog(ctk.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.transient(parent)
         self.grab_set()
+        self.update_idletasks()
+        self.deiconify()
 
     def _on_close(self):
         try:
             self.preview_player.stop()
+            self.grab_release()
         except Exception:
             pass
-        if self.parent_app:
-            self.parent_app.history_dialog = None
-        self.destroy()
+        self.withdraw()
 
     def _build_ui(self):
         container = ctk.CTkFrame(
@@ -1447,6 +1453,7 @@ class SubtitleStudioDialog(ctk.CTkToplevel):
 
     def __init__(self, parent: "GeminiTTSApp", audio_path: Optional[Path] = None, script_text: str = ""):
         super().__init__(parent)
+        self.withdraw()
         self.parent_app = parent
         self.audio_path = audio_path
         self.script_text = script_text
@@ -1474,15 +1481,16 @@ class SubtitleStudioDialog(ctk.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.transient(parent)
         self.grab_set()
+        self.update_idletasks()
+        self.deiconify()
 
     def _on_close(self):
         try:
             self.player.stop()
+            self.grab_release()
         except Exception:
             pass
-        if self.parent_app:
-            self.parent_app.subtitle_dialog = None
-        self.destroy()
+        self.withdraw()
 
     def _build_ui(self):
         container = ctk.CTkFrame(
@@ -1986,6 +1994,7 @@ class VoiceStudioDialog(ctk.CTkToplevel):
 
     def __init__(self, parent, tts_service: GeminiTTSService, on_voice_selected_callback: Callable[[str], None]):
         super().__init__(parent)
+        self.withdraw()
         self.parent_app = parent
         self.tts_service = tts_service
         self.on_voice_selected_callback = on_voice_selected_callback
@@ -2007,13 +2016,16 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.transient(parent)
         self.grab_set()
+        self.update_idletasks()
+        self.deiconify()
 
     def _on_close(self):
         try:
             self.audio_player.stop()
+            self.grab_release()
         except Exception:
             pass
-        self.destroy()
+        self.withdraw()
 
     def _build_ui(self):
         container = ctk.CTkFrame(
@@ -2094,13 +2106,20 @@ class VoiceStudioDialog(ctk.CTkToplevel):
         self.tab_frames["replicate"] = self.tab_replicate
         self.tab_frames["manage"] = self.tab_manage
 
-        self._build_tab_design()
-        self._build_tab_replicate()
-        self._build_tab_manage()
+        self._built_tabs: Set[str] = set()
+        self._tab_builders = {
+            "design": self._build_tab_design,
+            "replicate": self._build_tab_replicate,
+            "manage": self._build_tab_manage,
+        }
 
         self._switch_tab("design")
 
     def _switch_tab(self, active_tab: str):
+        if active_tab in self._tab_builders and active_tab not in self._built_tabs:
+            self._tab_builders[active_tab]()
+            self._built_tabs.add(active_tab)
+
         for t_id, frame in self.tab_frames.items():
             if t_id == active_tab:
                 frame.pack(fill="both", expand=True, padx=8, pady=8)
@@ -2955,6 +2974,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def __init__(self, parent: "GeminiTTSApp", initial_tab: str = "voice"):
         super().__init__(parent)
+        self.withdraw()
         self.parent_app = parent
         self.title("Gemini TTS Studio - Einstellungen")
         self.geometry("820x680")
@@ -2979,17 +2999,29 @@ class SettingsDialog(ctk.CTkToplevel):
         self.tab_buttons: Dict[str, ctk.CTkButton] = {}
         self.tab_frames: Dict[str, ctk.CTkFrame] = {}
 
+        self._built_tabs: Set[str] = set()
+        self._tab_builders = {
+            "voice": self._build_tab_voice,
+            "style": self._build_tab_style,
+            "format": self._build_tab_format,
+            "model": self._build_tab_model,
+        }
+
         self._build_ui()
         self._switch_tab(initial_tab)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.transient(parent)
         self.grab_set()
+        self.update_idletasks()
+        self.deiconify()
 
     def _on_close(self):
-        if self.parent_app:
-            self.parent_app.settings_dialog = None
-        self.destroy()
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        self.withdraw()
 
     def _build_ui(self):
         container = ctk.CTkFrame(
@@ -3112,12 +3144,7 @@ class SettingsDialog(ctk.CTkToplevel):
         # Tab Content Area (Scrollable frame filling remaining vertical space)
         self.content_area = ctk.CTkScrollableFrame(container, fg_color="transparent")
         self.content_area.pack(side="top", fill="both", expand=True, padx=20, pady=(0, 8))
-
-        # Build individual tab views
-        self._build_tab_voice()
-        self._build_tab_style()
-        self._build_tab_format()
-        self._build_tab_model()
+        # Tabs are built lazily on first access in _switch_tab
 
     def _build_tab_voice(self):
         f = ctk.CTkFrame(self.content_area, fg_color="transparent")
@@ -3833,6 +3860,10 @@ class SettingsDialog(ctk.CTkToplevel):
         self.parent_app._toggle_theme(mode_map.get(choice, "Light"))
 
     def _switch_tab(self, tab_name: str):
+        if tab_name in self._tab_builders and tab_name not in self._built_tabs:
+            self._tab_builders[tab_name]()
+            self._built_tabs.add(tab_name)
+
         self.current_tab = tab_name
         for name, frame in self.tab_frames.items():
             if name == tab_name:
@@ -4005,29 +4036,43 @@ class SettingsDialog(ctk.CTkToplevel):
         def on_custom_voice_chosen(voice_id: str):
             self.parent_app._refresh_voice_options(select_voice_id=voice_id)
             self.voice_cat_var.set("Eigene & Geklonte Stimmen")
-            self._on_category_changed("Eigene & Geklonte Stimmen")
+            if hasattr(self, "voice_menu"):
+                self._on_category_changed("Eigene & Geklonte Stimmen")
 
-        VoiceStudioDialog(
-            self,
-            self.parent_app.tts_service,
-            on_voice_selected_callback=on_custom_voice_chosen
-        )
+        if hasattr(self.parent_app, "voice_studio_dialog") and self.parent_app.voice_studio_dialog and self.parent_app.voice_studio_dialog.winfo_exists():
+            self.parent_app.voice_studio_dialog.on_voice_selected_callback = on_custom_voice_chosen
+            self.parent_app.voice_studio_dialog.deiconify()
+            self.parent_app.voice_studio_dialog.lift()
+            self.parent_app.voice_studio_dialog.grab_set()
+            self.parent_app.voice_studio_dialog.focus_force()
+        else:
+            self.parent_app.voice_studio_dialog = VoiceStudioDialog(
+                self,
+                self.parent_app.tts_service,
+                on_voice_selected_callback=on_custom_voice_chosen
+            )
 
     def _reset_defaults(self):
         if messagebox.askyesno("Zurücksetzen", "Möchtest du alle Einstellungen auf die Standardwerte zurücksetzen?"):
             self.voice_cat_var.set("Alle Stimmen")
-            self._on_category_changed("Alle Stimmen")
+            if hasattr(self, "voice_menu"):
+                self._on_category_changed("Alle Stimmen")
             self.lang_var.set(SUPPORTED_LANGUAGES[0]["name"])
             self.model_var.set(AVAILABLE_MODELS[0]["name"])
-            self._apply_tone_preset("Sachlich & Seriös", "Sprich in einem ruhigen, sachlichen und hochprofessionellen Tonfall wie ein erfahrener Nachrichtensprecher. Achte auf präzise Artikulation und deutliche Satzakzente.")
+            if hasattr(self, "prompt_box"):
+                self._apply_tone_preset("Sachlich & Seriös", "Sprich in einem ruhigen, sachlichen und hochprofessionellen Tonfall wie ein erfahrener Nachrichtensprecher. Achte auf präzise Artikulation und deutliche Satzakzente.")
+            else:
+                self.active_style_preset = "Sachlich & Seriös"
+                self.parent_app.system_prompt_text = "Sprich in einem ruhigen, sachlichen und hochprofessionellen Tonfall wie ein erfahrener Nachrichtensprecher. Achte auf präzise Artikulation und deutliche Satzakzente."
             self._apply_format_preset("aac", "64 kbit/s", "Mono (1)", True, "48.000 Hz", "Web AAC 64k")
             self.auto_update_var.set(True)
 
     def _save_and_apply(self):
-        new_k = self.key_entry.get().strip()
-        if new_k and new_k != get_api_key():
-            save_api_key(new_k)
-            self.parent_app._on_key_saved(new_k)
+        if hasattr(self, "key_entry"):
+            new_k = self.key_entry.get().strip()
+            if new_k and new_k != get_api_key():
+                save_api_key(new_k)
+                self.parent_app._on_key_saved(new_k)
 
         # Propagate to parent app
         self.parent_app.voice_category_var.set(self.voice_cat_var.get())
@@ -4041,8 +4086,9 @@ class SettingsDialog(ctk.CTkToplevel):
         self.parent_app.bitrate_var.set(self.bitrate_var.get())
         self.parent_app.faststart_var.set(self.faststart_var.get())
 
-        self.parent_app.system_prompt_text = self.prompt_box.get("0.0", "end").strip()
-        self.parent_app.active_style_preset_name = self.active_style_preset
+        if hasattr(self, "prompt_box"):
+            self.parent_app.system_prompt_text = self.prompt_box.get("0.0", "end").strip()
+            self.parent_app.active_style_preset_name = self.active_style_preset
         self.parent_app.auto_update_on_start = self.auto_update_var.get()
 
         # Update and persist output directory
@@ -4110,6 +4156,7 @@ class GeminiTTSApp(ctk.CTk):
 
     def __init__(self):
         super().__init__()
+        self.withdraw()
 
         self.title("Gemini TTS Studio - Windows Interface")
         self.geometry("1020x720")
@@ -4179,6 +4226,7 @@ class GeminiTTSApp(ctk.CTk):
         self.lexicon_dialog: Optional[LexiconDialog] = None
         self.subtitle_dialog: Optional[SubtitleStudioDialog] = None
         self.history_dialog: Optional[HistoryDialog] = None
+        self.voice_studio_dialog: Optional[VoiceStudioDialog] = None
 
         # Audio Ducking State (Collapsed & Disabled by default)
         self.is_ducking_collapsed = True
@@ -4214,6 +4262,31 @@ class GeminiTTSApp(ctk.CTk):
 
         # Start silent background update check after 2 seconds
         threading.Thread(target=self._check_for_updates_background, daemon=True).start()
+
+        self.update_idletasks()
+        self.deiconify()
+        self.protocol("WM_DELETE_WINDOW", self._on_app_close)
+
+    def _on_app_close(self):
+        """Cleanly closes application and all managed child dialogs."""
+        try:
+            self.player.stop()
+        except Exception:
+            pass
+        dialogs = [
+            getattr(self, "settings_dialog", None),
+            getattr(self, "lexicon_dialog", None),
+            getattr(self, "history_dialog", None),
+            getattr(self, "subtitle_dialog", None),
+            getattr(self, "voice_studio_dialog", None),
+        ]
+        for dlg in dialogs:
+            if dlg and dlg.winfo_exists():
+                try:
+                    dlg.destroy()
+                except Exception:
+                    pass
+        self.destroy()
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
@@ -5709,7 +5782,9 @@ class GeminiTTSApp(ctk.CTk):
     def _open_settings_dialog(self, initial_tab: str = "voice"):
         """Opens or focuses the modern Studio Settings Dialog."""
         if self.settings_dialog and self.settings_dialog.winfo_exists():
+            self.settings_dialog.deiconify()
             self.settings_dialog.lift()
+            self.settings_dialog.grab_set()
             self.settings_dialog.focus_force()
             self.settings_dialog._switch_tab(initial_tab)
             return
@@ -5818,7 +5893,9 @@ class GeminiTTSApp(ctk.CTk):
     def _open_lexicon_dialog(self):
         """Opens or focuses the Phonetic Lexicon & Pronunciation Dictionary Dialog."""
         if self.lexicon_dialog and self.lexicon_dialog.winfo_exists():
+            self.lexicon_dialog.deiconify()
             self.lexicon_dialog.lift()
+            self.lexicon_dialog.grab_set()
             self.lexicon_dialog.focus_force()
         else:
             self.lexicon_dialog = LexiconDialog(self)
@@ -5826,7 +5903,9 @@ class GeminiTTSApp(ctk.CTk):
     def _open_history_dialog(self):
         """Opens or focuses the dedicated Take History Dialog."""
         if self.history_dialog and self.history_dialog.winfo_exists():
+            self.history_dialog.deiconify()
             self.history_dialog.lift()
+            self.history_dialog.grab_set()
             self.history_dialog.focus_force()
         else:
             self.history_dialog = HistoryDialog(self)
@@ -5841,7 +5920,11 @@ class GeminiTTSApp(ctk.CTk):
             current_text = self.script_input.get("0.0", "end").strip()
 
         if self.subtitle_dialog and self.subtitle_dialog.winfo_exists():
+            self.subtitle_dialog.audio_path = current_audio
+            self.subtitle_dialog.script_text = current_text
+            self.subtitle_dialog.deiconify()
             self.subtitle_dialog.lift()
+            self.subtitle_dialog.grab_set()
             self.subtitle_dialog.focus_force()
         else:
             self.subtitle_dialog = SubtitleStudioDialog(self, audio_path=current_audio, script_text=current_text)
@@ -7052,7 +7135,14 @@ class GeminiTTSApp(ctk.CTk):
         chars = len(content)
         words = len(content.split()) if chars > 0 else 0
         self.char_counter_lbl.configure(text=f"{chars:,} Zeichen | {words:,} Wörter")
-        self._update_ab_status_labels()
+        
+        # Debounce A/B status updates to avoid UI stuttering while typing
+        if hasattr(self, "_ab_status_debounce_timer") and self._ab_status_debounce_timer:
+            try:
+                self.after_cancel(self._ab_status_debounce_timer)
+            except Exception:
+                pass
+        self._ab_status_debounce_timer = self.after(150, self._update_ab_status_labels)
 
     def _insert_tag(self, tag: str):
         self.text_input.insert("insert", f"{tag} ")
@@ -7073,7 +7163,14 @@ class GeminiTTSApp(ctk.CTk):
         def on_voice_selected(voice_id: str):
             self._refresh_voice_options(select_voice_id=voice_id)
 
-        VoiceStudioDialog(self, self.tts_service, on_voice_selected)
+        if hasattr(self, "voice_studio_dialog") and self.voice_studio_dialog and self.voice_studio_dialog.winfo_exists():
+            self.voice_studio_dialog.on_voice_selected_callback = on_voice_selected
+            self.voice_studio_dialog.deiconify()
+            self.voice_studio_dialog.lift()
+            self.voice_studio_dialog.grab_set()
+            self.voice_studio_dialog.focus_force()
+        else:
+            self.voice_studio_dialog = VoiceStudioDialog(self, self.tts_service, on_voice_selected)
 
     def _refresh_voice_options(self, select_voice_id: Optional[str] = None):
         all_voices = get_all_voices()
@@ -7477,9 +7574,11 @@ class GeminiTTSApp(ctk.CTk):
         self.player.set_volume(float(value))
 
     def _setup_player_timer(self):
-        """Update playback slider, waveform, and time display periodically when not user scrubbing."""
+        """Update playback slider, waveform, and time display periodically with adaptive polling."""
+        interval = 200  # Low CPU consumption when idle
         if not self.is_user_scrubbing and not getattr(self.waveform_view, "is_scrubbing", False):
             if self.player.is_playing() or self.player.is_paused():
+                interval = 50  # High frame rate (20 fps) during active playback
                 curr = self.player.get_position()
                 total = self.player.get_duration()
                 if total > 0:
@@ -7495,7 +7594,7 @@ class GeminiTTSApp(ctk.CTk):
                     if hasattr(self, "waveform_view"):
                         self.waveform_view.set_progress(0.0)
         
-        self.after(80, self._setup_player_timer)
+        self.after(interval, self._setup_player_timer)
 
     def _format_time(self, seconds: float) -> str:
         mins = int(seconds // 60)

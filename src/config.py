@@ -99,26 +99,44 @@ def _migrate_legacy_data():
 
 _migrate_legacy_data()
 
+_SETTINGS_CACHE: dict | None = None
+_STYLES_CACHE: dict | None = None
+_VOICES_CACHE: list | None = None
+_ALL_VOICES_CACHE: list | None = None
+
+
 def load_app_settings() -> dict:
-    """Load persistent application settings from settings.json."""
-    if SETTINGS_FILE.exists():
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {
+    """Load persistent application settings from settings.json (cached in-memory)."""
+    global _SETTINGS_CACHE
+    if _SETTINGS_CACHE is not None:
+        return dict(_SETTINGS_CACHE)
+
+    default_settings = {
         "output_dir": str(DEFAULT_OUTPUT_DIR),
         "auto_update": True,
     }
+    if SETTINGS_FILE.exists():
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                _SETTINGS_CACHE = json.load(f)
+                return dict(_SETTINGS_CACHE)
+        except Exception:
+            pass
+
+    _SETTINGS_CACHE = default_settings
+    return dict(_SETTINGS_CACHE)
+
 
 def save_app_settings(settings: dict):
-    """Save persistent application settings to settings.json."""
+    """Save persistent application settings to settings.json and update cache."""
+    global _SETTINGS_CACHE
+    _SETTINGS_CACHE = dict(settings)
     try:
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"Fehler beim Speichern der Einstellungen: {e}")
+
 
 def get_output_dir() -> Path:
     """Get active output directory for exported audio files."""
@@ -138,6 +156,7 @@ def get_output_dir() -> Path:
             temp_out.mkdir(parents=True, exist_ok=True)
             return temp_out
 
+
 def set_output_dir(path: Path):
     """Update active output directory for exported audio files."""
     try:
@@ -150,51 +169,70 @@ def set_output_dir(path: Path):
     global OUTPUT_DIR
     OUTPUT_DIR = path.resolve()
 
+
 OUTPUT_DIR = get_output_dir()
 
 
-
 def load_custom_styles() -> dict:
-    """Load user-defined style presets from custom_styles.json."""
+    """Load user-defined style presets from custom_styles.json (cached in-memory)."""
+    global _STYLES_CACHE
+    if _STYLES_CACHE is not None:
+        return dict(_STYLES_CACHE)
+
     if CUSTOM_STYLES_FILE.exists():
         try:
             with open(CUSTOM_STYLES_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                _STYLES_CACHE = json.load(f)
+                return dict(_STYLES_CACHE)
         except Exception:
-            return {}
+            pass
+
+    _STYLES_CACHE = {}
     return {}
 
 
 def save_custom_style(name: str, directive: str):
     """Save a user-defined style preset."""
+    global _STYLES_CACHE
     styles = load_custom_styles()
     styles[name] = directive
+    _STYLES_CACHE = dict(styles)
     with open(CUSTOM_STYLES_FILE, "w", encoding="utf-8") as f:
         json.dump(styles, f, ensure_ascii=False, indent=2)
 
 
 def delete_custom_style(name: str):
     """Delete a user-defined style preset."""
+    global _STYLES_CACHE
     styles = load_custom_styles()
     if name in styles:
         del styles[name]
+        _STYLES_CACHE = dict(styles)
         with open(CUSTOM_STYLES_FILE, "w", encoding="utf-8") as f:
             json.dump(styles, f, ensure_ascii=False, indent=2)
 
 
 def load_custom_voices() -> list:
-    """Load user-created or imported custom voices from custom_voices.json."""
+    """Load user-created or imported custom voices from custom_voices.json (cached in-memory)."""
+    global _VOICES_CACHE
+    if _VOICES_CACHE is not None:
+        return list(_VOICES_CACHE)
+
     if CUSTOM_VOICES_FILE.exists():
         try:
             with open(CUSTOM_VOICES_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                _VOICES_CACHE = json.load(f)
+                return list(_VOICES_CACHE)
         except Exception:
-            return []
+            pass
+
+    _VOICES_CACHE = []
     return []
 
 
 def save_custom_voice(voice_data: dict):
     """Save or update a custom voice definition."""
+    global _VOICES_CACHE, _ALL_VOICES_CACHE
     voices = load_custom_voices()
     updated = False
     for i, v in enumerate(voices):
@@ -204,20 +242,29 @@ def save_custom_voice(voice_data: dict):
             break
     if not updated:
         voices.insert(0, voice_data)
+    _VOICES_CACHE = list(voices)
+    _ALL_VOICES_CACHE = None
     with open(CUSTOM_VOICES_FILE, "w", encoding="utf-8") as f:
         json.dump(voices, f, ensure_ascii=False, indent=2)
 
 
 def delete_custom_voice(voice_id: str):
     """Delete a custom voice definition."""
+    global _VOICES_CACHE, _ALL_VOICES_CACHE
     voices = load_custom_voices()
     voices = [v for v in voices if v.get("id") != voice_id]
+    _VOICES_CACHE = list(voices)
+    _ALL_VOICES_CACHE = None
     with open(CUSTOM_VOICES_FILE, "w", encoding="utf-8") as f:
         json.dump(voices, f, ensure_ascii=False, indent=2)
 
 
 def get_all_voices() -> list:
-    """Return all voices combining prebuilt voices and user custom voices."""
+    """Return all voices combining prebuilt voices and user custom voices (cached)."""
+    global _ALL_VOICES_CACHE
+    if _ALL_VOICES_CACHE is not None:
+        return _ALL_VOICES_CACHE
+
     custom = load_custom_voices()
     formatted_custom = []
     for c in custom:
@@ -229,7 +276,8 @@ def get_all_voices() -> list:
             "type": c.get("type", "prompted"),
             "sample_audio": c.get("sample_audio", "")
         })
-    return AVAILABLE_VOICES + formatted_custom
+    _ALL_VOICES_CACHE = AVAILABLE_VOICES + formatted_custom
+    return _ALL_VOICES_CACHE
 
 
 # Load environment variables (from .env next to exe/script or current dir)
@@ -238,7 +286,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
     load_dotenv(Path.cwd() / ".env")
 
 # Application & Update Configuration
-APP_VERSION = "3.1.1"
+APP_VERSION = "3.1.2"
 GITHUB_REPO = "ZQP/TTS-Interface"
 
 # API Configuration

@@ -65,14 +65,22 @@ DEFAULT_LEXICON_ENTRIES = [
 ]
 
 
+_LEXICON_CACHE: Optional[List[Dict[str, Any]]] = None
+
+
 def load_lexicon() -> List[Dict[str, Any]]:
-    """Load all lexicon rules from custom_lexicon.json or initialize defaults."""
+    """Load all lexicon rules from custom_lexicon.json (cached in-memory) or initialize defaults."""
+    global _LEXICON_CACHE
+    if _LEXICON_CACHE is not None:
+        return list(_LEXICON_CACHE)
+
     if LEXICON_FILE.exists():
         try:
             with open(LEXICON_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    return data
+                    _LEXICON_CACHE = list(data)
+                    return list(_LEXICON_CACHE)
         except Exception as e:
             print(f"Hinweis beim Laden des Aussprache-Lexikons: {e}")
     
@@ -83,17 +91,21 @@ def load_lexicon() -> List[Dict[str, Any]]:
             with open(fallback, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    return data
+                    _LEXICON_CACHE = list(data)
+                    return list(_LEXICON_CACHE)
         except Exception:
             pass
 
     # Save and return defaults
     save_lexicon(DEFAULT_LEXICON_ENTRIES)
-    return DEFAULT_LEXICON_ENTRIES
+    _LEXICON_CACHE = list(DEFAULT_LEXICON_ENTRIES)
+    return list(_LEXICON_CACHE)
 
 
 def save_lexicon(rules: List[Dict[str, Any]]) -> bool:
-    """Save lexicon rules to disk."""
+    """Save lexicon rules to disk and update cache."""
+    global _LEXICON_CACHE
+    _LEXICON_CACHE = list(rules)
     try:
         LEXICON_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(LEXICON_FILE, "w", encoding="utf-8") as f:
@@ -113,7 +125,9 @@ def save_lexicon(rules: List[Dict[str, Any]]) -> bool:
 
 def reset_lexicon_to_defaults() -> List[Dict[str, Any]]:
     """Reset lexicon to factory default starter rules and persist."""
+    global _LEXICON_CACHE
     save_lexicon(DEFAULT_LEXICON_ENTRIES)
+    _LEXICON_CACHE = list(DEFAULT_LEXICON_ENTRIES)
     return list(DEFAULT_LEXICON_ENTRIES)
 
 

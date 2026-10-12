@@ -17,17 +17,22 @@ MAX_HISTORY_ITEMS = 25
 
 _CURRENT_SLOT_A_ID: Optional[str] = None
 _CURRENT_SLOT_B_ID: Optional[str] = None
+_HISTORY_CACHE: Optional[List[Dict[str, Any]]] = None
 
 
 def load_history() -> List[Dict[str, Any]]:
-    """Loads generation takes from disk."""
+    """Loads generation takes from disk (cached in-memory)."""
+    global _HISTORY_CACHE
+    if _HISTORY_CACHE is not None:
+        return list(_HISTORY_CACHE)
+
     if HISTORY_FILE.exists():
         try:
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    # Filter for files that still exist or keep valid records
-                    return data
+                    _HISTORY_CACHE = list(data)
+                    return list(_HISTORY_CACHE)
         except Exception as e:
             print(f"Hinweis beim Laden der Historie: {e}")
 
@@ -37,19 +42,22 @@ def load_history() -> List[Dict[str, Any]]:
             with open(fallback, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    return data
+                    _HISTORY_CACHE = list(data)
+                    return list(_HISTORY_CACHE)
         except Exception:
             pass
 
+    _HISTORY_CACHE = []
     return []
 
 
 def save_history(history_items: List[Dict[str, Any]]) -> bool:
     """Saves history items to disk, capped to MAX_HISTORY_ITEMS."""
+    global _HISTORY_CACHE
+    capped = history_items[:MAX_HISTORY_ITEMS]
+    _HISTORY_CACHE = list(capped)
     try:
         HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        # Cap
-        capped = history_items[:MAX_HISTORY_ITEMS]
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(capped, f, ensure_ascii=False, indent=2)
         return True
@@ -58,7 +66,7 @@ def save_history(history_items: List[Dict[str, Any]]) -> bool:
         try:
             fallback = BASE_DIR / "generation_history.json"
             with open(fallback, "w", encoding="utf-8") as f:
-                json.dump(history_items[:MAX_HISTORY_ITEMS], f, ensure_ascii=False, indent=2)
+                json.dump(capped, f, ensure_ascii=False, indent=2)
             return True
         except Exception:
             return False
@@ -110,9 +118,10 @@ def log_generation(
 
 def clear_history() -> bool:
     """Clears all history records."""
-    global _CURRENT_SLOT_A_ID, _CURRENT_SLOT_B_ID
+    global _CURRENT_SLOT_A_ID, _CURRENT_SLOT_B_ID, _HISTORY_CACHE
     _CURRENT_SLOT_A_ID = None
     _CURRENT_SLOT_B_ID = None
+    _HISTORY_CACHE = []
     return save_history([])
 
 
