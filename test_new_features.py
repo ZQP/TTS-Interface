@@ -61,6 +61,28 @@ def test_lexicon():
     assert "Es-Kju-Ell" in transformed, "SQL should be replaced with Es-Kju-Ell"
     assert "Tschätt-Dschi-Pi-Ti" in transformed, "ChatGPT should be replaced"
     assert "Kilometer pro Stunde" in transformed, "km/h regex should be replaced"
+
+    # Test adding entry with rule_type and enabled (the exact call from the GUI)
+    custom_rule = add_lexicon_entry(
+        term="KI-Modell",
+        replacement="Künstliche-Intelligenz-Modell",
+        rule_type="akronym",
+        case_sensitive=False,
+        is_regex=False,
+        enabled=True
+    )
+    print(f"  Added rule: {custom_rule['term']} -> {custom_rule['replacement']}")
+    assert custom_rule["id"] is not None
+    assert "Künstliche-Intelligenz-Modell" in apply_lexicon("Das KI-Modell lernt schnell.")
+
+    # Test updating entry
+    update_lexicon_entry(custom_rule["id"], replacement="K-I-Modell")
+    assert "K-I-Modell" in apply_lexicon("Das KI-Modell lernt schnell.")
+
+    # Test deleting entry
+    deleted = delete_lexicon_entry(custom_rule["id"])
+    assert deleted, "Entry should be deleted"
+    assert "Das KI-Modell" in apply_lexicon("Das KI-Modell lernt schnell.")
     print("  [+] Phonetic Lexicon test PASSED successfully!\n")
 
 

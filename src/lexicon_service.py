@@ -68,19 +68,22 @@ DEFAULT_LEXICON_ENTRIES = [
 _LEXICON_CACHE: Optional[List[Dict[str, Any]]] = None
 
 
-def load_lexicon() -> List[Dict[str, Any]]:
+import copy
+
+
+def load_lexicon(force_reload: bool = False) -> List[Dict[str, Any]]:
     """Load all lexicon rules from custom_lexicon.json (cached in-memory) or initialize defaults."""
     global _LEXICON_CACHE
-    if _LEXICON_CACHE is not None:
-        return list(_LEXICON_CACHE)
+    if _LEXICON_CACHE is not None and not force_reload:
+        return copy.deepcopy(_LEXICON_CACHE)
 
     if LEXICON_FILE.exists():
         try:
             with open(LEXICON_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    _LEXICON_CACHE = list(data)
-                    return list(_LEXICON_CACHE)
+                    _LEXICON_CACHE = data
+                    return copy.deepcopy(_LEXICON_CACHE)
         except Exception as e:
             print(f"Hinweis beim Laden des Aussprache-Lexikons: {e}")
     
@@ -91,21 +94,22 @@ def load_lexicon() -> List[Dict[str, Any]]:
             with open(fallback, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    _LEXICON_CACHE = list(data)
-                    return list(_LEXICON_CACHE)
+                    _LEXICON_CACHE = data
+                    return copy.deepcopy(_LEXICON_CACHE)
         except Exception:
             pass
 
     # Save and return defaults
-    save_lexicon(DEFAULT_LEXICON_ENTRIES)
-    _LEXICON_CACHE = list(DEFAULT_LEXICON_ENTRIES)
-    return list(_LEXICON_CACHE)
+    defaults = copy.deepcopy(DEFAULT_LEXICON_ENTRIES)
+    save_lexicon(defaults)
+    _LEXICON_CACHE = defaults
+    return copy.deepcopy(_LEXICON_CACHE)
 
 
 def save_lexicon(rules: List[Dict[str, Any]]) -> bool:
     """Save lexicon rules to disk and update cache."""
     global _LEXICON_CACHE
-    _LEXICON_CACHE = list(rules)
+    _LEXICON_CACHE = copy.deepcopy(rules)
     try:
         LEXICON_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(LEXICON_FILE, "w", encoding="utf-8") as f:
@@ -125,24 +129,49 @@ def save_lexicon(rules: List[Dict[str, Any]]) -> bool:
 
 def reset_lexicon_to_defaults() -> List[Dict[str, Any]]:
     """Reset lexicon to factory default starter rules and persist."""
-    global _LEXICON_CACHE
-    save_lexicon(DEFAULT_LEXICON_ENTRIES)
-    _LEXICON_CACHE = list(DEFAULT_LEXICON_ENTRIES)
-    return list(DEFAULT_LEXICON_ENTRIES)
+    defaults = copy.deepcopy(DEFAULT_LEXICON_ENTRIES)
+    save_lexicon(defaults)
+    return defaults
 
 
-def add_lexicon_entry(term: str, replacement: str, entry_type: str = "benutzer",
-                      case_sensitive: bool = False, is_regex: bool = False) -> Dict[str, Any]:
-    """Add a new entry to the lexicon and persist."""
-    rules = load_lexicon()
+def add_lexicon_entry(
+    term: str,
+    replacement: str,
+    entry_type: str = "benutzer",
+    case_sensitive: bool = False,
+    is_regex: bool = False,
+    enabled: bool = True,
+    rule_type: Optional[str] = None,
+    entry_id: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Add a new entry to the lexicon (or update existing entry if ID matches) and persist.
+    Accepts both `entry_type` and `rule_type` for maximum compatibility.
+    """
+    rules = load_lexicon(force_reload=True)
+    r_type = rule_type if rule_type is not None else entry_type
+
+    if entry_id:
+        for entry in rules:
+            if entry.get("id") == entry_id:
+                entry["term"] = term.strip()
+                entry["replacement"] = replacement.strip()
+                entry["type"] = r_type
+                entry["case_sensitive"] = case_sensitive
+                entry["is_regex"] = is_regex
+                entry["enabled"] = enabled
+                save_lexicon(rules)
+                return entry
+
     new_entry = {
-        "id": str(uuid.uuid4())[:8],
+        "id": entry_id or str(uuid.uuid4())[:8],
         "term": term.strip(),
         "replacement": replacement.strip(),
-        "type": entry_type,
+        "type": r_type,
         "case_sensitive": case_sensitive,
         "is_regex": is_regex,
-        "enabled": True,
+        "enabled": enabled,
     }
     rules.append(new_entry)
     save_lexicon(rules)
@@ -150,8 +179,13 @@ def add_lexicon_entry(term: str, replacement: str, entry_type: str = "benutzer",
 
 
 def update_lexicon_entry(entry_id: str, **kwargs) -> bool:
-    """Update fields of an existing lexicon entry."""
-    rules = load_lexicon()
+    """Update fields of an existing lexicon entry and persist."""
+    rules = load_lexicon(force_reload=True)
+    if "rule_type" in kwargs:
+        kwargs["type"] = kwargs.pop("rule_type")
+    elif "entry_type" in kwargs:
+        kwargs["type"] = kwargs.pop("entry_type")
+
     for entry in rules:
         if entry.get("id") == entry_id:
             entry.update(kwargs)
@@ -161,11 +195,20 @@ def update_lexicon_entry(entry_id: str, **kwargs) -> bool:
 
 def delete_lexicon_entry(entry_id: str) -> bool:
     """Delete a lexicon entry by ID."""
-    rules = load_lexicon()
+    rules = load_lexicon(force_reload=True)
     new_rules = [e for e in rules if e.get("id") != entry_id]
     if len(new_rules) != len(rules):
         return save_lexicon(new_rules)
     return False
+
+
+def get_lexicon_entry(entry_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a single lexicon entry by ID."""
+    rules = load_lexicon()
+    for entry in rules:
+        if entry.get("id") == entry_id:
+            return dict(entry)
+    return None
 
 
 def apply_lexicon(text: str, rules: Optional[List[Dict[str, Any]]] = None) -> str:
@@ -201,7 +244,6 @@ def apply_lexicon(text: str, rules: Optional[List[Dict[str, Any]]] = None) -> st
             else:
                 # Word-boundary matching for regular words/acronyms to avoid substring collisions
                 escaped = re.escape(term)
-                # If term starts/ends with alphanumeric, enforce word boundary
                 pattern = r""
                 if term[0].isalnum():
                     pattern += r"\b"
@@ -209,7 +251,8 @@ def apply_lexicon(text: str, rules: Optional[List[Dict[str, Any]]] = None) -> st
                 if term[-1].isalnum():
                     pattern += r"\b"
 
-                processed_text = re.sub(pattern, replacement, processed_text, flags=flags)
+                # Use a callable replacement to safely avoid escape-sequence corruption in plain text
+                processed_text = re.sub(pattern, lambda m, rep=replacement: rep, processed_text, flags=flags)
         except re.error as e:
             print(f"Warnung: Ungültiges Regex im Aussprache-Lexikon ('{term}'): {e}")
 

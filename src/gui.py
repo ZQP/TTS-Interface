@@ -725,6 +725,7 @@ class LexiconDialog(ctk.CTkToplevel):
         self.preview_player = AudioPlayer()
         self.rules: List[Dict[str, Any]] = []
         self.is_generating_probe = False
+        self.editing_rule_id: Optional[str] = None
 
         self._build_ui()
         self._refresh_rules_list()
@@ -741,6 +742,7 @@ class LexiconDialog(ctk.CTkToplevel):
             self.grab_release()
         except Exception:
             pass
+        self._cancel_edit()
         self.withdraw()
 
     def _build_ui(self):
@@ -854,13 +856,13 @@ class LexiconDialog(ctk.CTkToplevel):
         )
         form_card.pack(fill="x", pady=(0, 12))
 
-        form_title = ctk.CTkLabel(
+        self.form_title_lbl = ctk.CTkLabel(
             form_card,
             text="Neue Regel hinzufügen",
             font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
             text_color=COLOR_PRIMARY_TEXT
         )
-        form_title.pack(anchor="w", padx=14, pady=(12, 6))
+        self.form_title_lbl.pack(anchor="w", padx=14, pady=(12, 6))
 
         # Term
         ctk.CTkLabel(
@@ -919,8 +921,12 @@ class LexiconDialog(ctk.CTkToplevel):
         )
         self.rule_case_cb.pack(side="left")
 
+        # Buttons Row: Save & Cancel
+        btn_row = ctk.CTkFrame(form_card, fg_color="transparent")
+        btn_row.pack(fill="x", padx=14, pady=(4, 6))
+
         self.add_rule_btn = ctk.CTkButton(
-            form_card,
+            btn_row,
             text="Regel speichern",
             image=get_ui_icon("plus", "white", 13),
             compound="left",
@@ -932,7 +938,30 @@ class LexiconDialog(ctk.CTkToplevel):
             hover_color=M3_CTA_HOVER,
             text_color="#FFFFFF"
         )
-        self.add_rule_btn.pack(fill="x", padx=14, pady=(4, 14))
+        self.add_rule_btn.pack(side="left", fill="x", expand=True)
+
+        self.cancel_edit_btn = ctk.CTkButton(
+            btn_row,
+            text="Abbrechen",
+            command=self._cancel_edit,
+            height=34,
+            width=80,
+            corner_radius=17,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=COLOR_MUTED_TEXT,
+            border_width=1.5,
+            border_color=M3_OUTLINE
+        )
+
+        self.rule_status_lbl = ctk.CTkLabel(
+            form_card,
+            text="",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=M3_PRIMARY
+        )
+        self.rule_status_lbl.pack(anchor="w", padx=14, pady=(0, 8))
 
         # Preview & Test Probe Card
         preview_card = ctk.CTkFrame(
@@ -1091,9 +1120,25 @@ class LexiconDialog(ctk.CTkToplevel):
                 )
                 cs_badge.pack(side="left", padx=(0, 4))
 
-            # Delete Button
+            # Action Buttons on right: Edit & Delete
+            actions_frame = ctk.CTkFrame(row, fg_color="transparent")
+            actions_frame.pack(side="right", padx=(4, 8), pady=6)
+
+            edit_btn = ctk.CTkButton(
+                actions_frame,
+                text="",
+                image=get_ui_icon("edit", "theme", 13),
+                command=lambda r=rule: self._start_edit(r),
+                width=28,
+                height=28,
+                corner_radius=14,
+                fg_color="transparent",
+                hover_color=M3_SURFACE_CONTAINER
+            )
+            edit_btn.pack(side="left", padx=(0, 2))
+
             del_btn = ctk.CTkButton(
-                row,
+                actions_frame,
                 text="",
                 image=get_ui_icon("trash", "danger", 13),
                 command=lambda r_id=rule["id"]: self._delete_rule(r_id),
@@ -1103,14 +1148,53 @@ class LexiconDialog(ctk.CTkToplevel):
                 fg_color="transparent",
                 hover_color=M3_ERROR_HOVER
             )
-            del_btn.pack(side="right", padx=(4, 8), pady=6)
+            del_btn.pack(side="left")
+
+    def _start_edit(self, rule: Dict[str, Any]):
+        """Load an existing rule into the edit form."""
+        self.editing_rule_id = rule.get("id")
+        self.form_title_lbl.configure(text=f"Regel bearbeiten: '{rule.get('term', '')}'")
+        self.entry_term.delete(0, "end")
+        self.entry_term.insert(0, rule.get("term", ""))
+        self.entry_replacement.delete(0, "end")
+        self.entry_replacement.insert(0, rule.get("replacement", ""))
+
+        t = rule.get("type", "akronym").capitalize()
+        if t in ["Akronym", "Eigenname", "Abkürzung", "Regex"]:
+            self.rule_type_menu.set(t)
+        elif rule.get("is_regex"):
+            self.rule_type_menu.set("Regex")
+        else:
+            self.rule_type_menu.set("Akronym")
+
+        self.rule_case_var.set(rule.get("case_sensitive", False))
+        self.add_rule_btn.configure(text="Änderung speichern", image=get_ui_icon("edit", "white", 13))
+        self.cancel_edit_btn.pack(side="left", padx=(8, 0))
+        self.rule_status_lbl.configure(text="")
+        self.entry_replacement.focus_set()
+
+    def _cancel_edit(self):
+        """Cancel current rule editing and reset the form."""
+        self.editing_rule_id = None
+        self.form_title_lbl.configure(text="Neue Regel hinzufügen")
+        self.entry_term.delete(0, "end")
+        self.entry_replacement.delete(0, "end")
+        self.rule_case_var.set(False)
+        self.rule_type_menu.set("Akronym")
+        self.add_rule_btn.configure(text="Regel speichern", image=get_ui_icon("plus", "white", 13))
+        self.cancel_edit_btn.pack_forget()
 
     def _toggle_rule(self, rule_id: str, enabled: bool):
         update_lexicon_entry(rule_id, enabled=enabled)
-        self._refresh_rules_list()
+        for r in self.rules:
+            if r.get("id") == rule_id:
+                r["enabled"] = enabled
+                break
         self._update_test_preview()
 
     def _delete_rule(self, rule_id: str):
+        if self.editing_rule_id == rule_id:
+            self._cancel_edit()
         delete_lexicon_entry(rule_id)
         self._refresh_rules_list()
         self._update_test_preview()
@@ -1126,25 +1210,62 @@ class LexiconDialog(ctk.CTkToplevel):
             messagebox.showwarning("Fehlende Eingabe", "Bitte gib sowohl einen Begriff als auch die Lautschrift-Ersetzung ein.")
             return
 
-        add_lexicon_entry(
-            term=term,
-            replacement=repl,
-            rule_type=r_type,
-            case_sensitive=case_sens,
-            is_regex=is_regex,
-            enabled=True
-        )
+        if is_regex:
+            try:
+                re.compile(term)
+            except re.error as e:
+                messagebox.showerror("Ungültiges Regex", f"Der eingegebene reguläre Ausdruck ist ungültig:\n{e}")
+                return
 
-        self.entry_term.delete(0, "end")
-        self.entry_replacement.delete(0, "end")
-        self._refresh_rules_list()
-        self._update_test_preview()
+        try:
+            if self.editing_rule_id:
+                update_lexicon_entry(
+                    self.editing_rule_id,
+                    term=term,
+                    replacement=repl,
+                    rule_type=r_type,
+                    case_sensitive=case_sens,
+                    is_regex=is_regex
+                )
+                self.rule_status_lbl.configure(text=f"✓ Regel für '{term}' aktualisiert!", text_color=M3_PRIMARY)
+            else:
+                existing = [r for r in self.rules if (r.get("term") == term if case_sens else r.get("term", "").lower() == term.lower())]
+                if existing:
+                    update_lexicon_entry(
+                        existing[0]["id"],
+                        term=term,
+                        replacement=repl,
+                        rule_type=r_type,
+                        case_sensitive=case_sens,
+                        is_regex=is_regex
+                    )
+                    self.rule_status_lbl.configure(text=f"✓ Bestehende Regel für '{term}' aktualisiert!", text_color=M3_PRIMARY)
+                else:
+                    add_lexicon_entry(
+                        term=term,
+                        replacement=repl,
+                        rule_type=r_type,
+                        case_sensitive=case_sens,
+                        is_regex=is_regex,
+                        enabled=True
+                    )
+                    self.rule_status_lbl.configure(text=f"✓ Regel für '{term}' gespeichert!", text_color=M3_PRIMARY)
+
+            self.after(3500, lambda: self.rule_status_lbl.configure(text=""))
+            self._cancel_edit()
+            self._refresh_rules_list()
+            self._update_test_preview()
+        except Exception as e:
+            messagebox.showerror("Fehler beim Speichern", f"Die Regel konnte nicht gespeichert werden:\n{e}")
 
     def _reset_defaults(self):
         if messagebox.askyesno("Bestätigung", "Möchtest du das Aussprache-Lexikon auf die Standard-Regeln zurücksetzen?"):
+            self._cancel_edit()
             reset_lexicon_to_defaults()
             self._refresh_rules_list()
             self._update_test_preview()
+            self.rule_status_lbl.configure(text="✓ Standard-Regeln geladen", text_color=M3_PRIMARY)
+            self.after(3500, lambda: self.rule_status_lbl.configure(text=""))
 
     def _update_test_preview(self, event=None):
         text = self.test_text_entry.get()
@@ -5931,6 +6052,8 @@ class GeminiTTSApp(ctk.CTk):
             self.lexicon_dialog.lift()
             self.lexicon_dialog.grab_set()
             self.lexicon_dialog.focus_force()
+            self.lexicon_dialog._refresh_rules_list()
+            self.lexicon_dialog._update_test_preview()
         else:
             self.lexicon_dialog = LexiconDialog(self)
 

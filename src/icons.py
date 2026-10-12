@@ -222,6 +222,15 @@ def _draw_history(color: Tuple[int, int, int, int], size: int = 64) -> Image.Ima
     return img
 
 
+def _draw_edit(color: Tuple[int, int, int, int], size: int = 64) -> Image.Image:
+    img, draw = _create_canvas(size)
+    cx, cy = size / 2, size / 2
+    # Pencil tilted at 45 degrees
+    draw.polygon([(cx - 12, cy + 12), (cx - 12, cy + 5), (cx + 6, cy - 13), (cx + 13, cy - 6), (cx - 5, cy + 12)], outline=color, width=3)
+    draw.line([(cx - 12, cy + 12), (cx - 5, cy + 12)], fill=color, width=3)
+    return img
+
+
 def get_ui_icon(name: str, variant: str = "theme", size: int = 16) -> ctk.CTkImage:
     """
     Returns a cached CTkImage for the requested icon name.
@@ -250,6 +259,8 @@ def get_ui_icon(name: str, variant: str = "theme", size: int = 16) -> ctk.CTkIma
         "add": _draw_plus,
         "trash": _draw_trash,
         "delete": _draw_trash,
+        "edit": _draw_edit,
+        "pencil": _draw_edit,
         "sparkles": _draw_sparkles,
         "generate": _draw_sparkles,
         "moon": _draw_moon,
