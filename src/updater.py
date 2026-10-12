@@ -63,6 +63,11 @@ def format_release_notes(raw_notes: str) -> str:
             text = re.sub(r"`(.*?)`", r"\1", text)
             return text
 
+        # Divider
+        if stripped.startswith("---") or stripped.startswith("___"):
+            cleaned_lines.append("────────────────────────────────────────")
+            continue
+
         # Headings
         if stripped.startswith("#### "):
             cleaned_lines.append(f"  • {clean_md(stripped[5:].strip())}\n")
@@ -123,6 +128,37 @@ class UpdateService:
             pass
         return ""
 
+    def _fetch_compare_commits(self, target_version: str) -> Optional[str]:
+        """Fetch commit messages between current version and target version via GitHub compare API."""
+        token = self.github_token
+        current_tag = f"v{self.current_version.lstrip('v')}"
+        target_tag = f"v{target_version.lstrip('v')}"
+        url = f"https://api.github.com/repos/{self.repo}/compare/{current_tag}...{target_tag}"
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": f"GeminiTTSStudio-Updater/{self.current_version}"
+        }
+        if token:
+            headers["Authorization"] = f"token {token}"
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                if response.status == 200:
+                    cmp_data = json.loads(response.read().decode("utf-8"))
+                    commits = cmp_data.get("commits", [])
+                    if commits:
+                        notes_lines = ["Neuerungen & Änderungen in diesem Update:"]
+                        for c in commits:
+                            msg = c.get("commit", {}).get("message", "").strip()
+                            first_line = msg.split("\n")[0].strip()
+                            cleaned = re.sub(r"^(feat|fix|perf|refactor|docs|chore)(\([^)]+\))?:\s*", "", first_line)
+                            cleaned = cleaned[:1].upper() + cleaned[1:] if cleaned else first_line
+                            notes_lines.append(f"- {cleaned}")
+                        return "\n".join(notes_lines)
+        except Exception:
+            pass
+        return None
+
     def check_for_updates(self, custom_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Check GitHub Releases for a newer version.
@@ -152,13 +188,20 @@ class UpdateService:
         if not tag_name:
             return None
 
+        raw_body = data.get("body", "").strip()
+        # If release notes are empty or only contain a generic changelog link, fetch commits from compare API!
+        if not raw_body or (len(raw_body.splitlines()) <= 2 and ("compare/" in raw_body or "Full Changelog" in raw_body)):
+            compare_notes = self._fetch_compare_commits(tag_name)
+            if compare_notes:
+                raw_body = compare_notes
+
         if not is_newer_version(tag_name, self.current_version):
             return {
                 "update_available": False,
                 "current_version": self.current_version,
                 "latest_version": tag_name,
                 "release_name": data.get("name", tag_name),
-                "release_notes": data.get("body", "")
+                "release_notes": raw_body
             }
 
         # Look for executable asset
@@ -180,7 +223,7 @@ class UpdateService:
             "current_version": self.current_version,
             "latest_version": tag_name,
             "release_name": data.get("name", tag_name),
-            "release_notes": data.get("body", ""),
+            "release_notes": raw_body,
             "download_url": download_url,
             "asset_url": exe_asset.get("url", "") if exe_asset else "",
             "asset_name": asset_name,

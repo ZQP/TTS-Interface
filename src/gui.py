@@ -538,7 +538,7 @@ class UpdateDialog(ctk.CTkToplevel):
         self.is_downloading = False
 
         self.title("Gemini TTS Studio Update")
-        self.geometry("620x480")
+        self.geometry("640x520")
         self.resizable(False, False)
         apply_app_icon(self)
 
@@ -590,7 +590,7 @@ class UpdateDialog(ctk.CTkToplevel):
 
         notes_box = ctk.CTkTextbox(
             frame,
-            height=150,
+            height=200,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             wrap="word",
             corner_radius=12,
@@ -3783,7 +3783,7 @@ class SettingsDialog(ctk.CTkToplevel):
         up_box.pack(fill="x", pady=(0, 6))
 
         up_content = ctk.CTkFrame(up_box, fg_color="transparent")
-        up_content.pack(fill="x", padx=14, pady=12)
+        up_content.pack(fill="x", padx=14, pady=(12, 6))
 
         up_text_col = ctk.CTkFrame(up_content, fg_color="transparent")
         up_text_col.pack(side="left", fill="x", expand=True)
@@ -3809,6 +3809,32 @@ class SettingsDialog(ctk.CTkToplevel):
             progress_color=M3_PRIMARY[0]
         )
         self.auto_up_switch.pack(side="right")
+
+        # Action row for manual update check
+        up_action_row = ctk.CTkFrame(up_box, fg_color="transparent")
+        up_action_row.pack(fill="x", padx=14, pady=(0, 12))
+
+        ctk.CTkLabel(
+            up_action_row,
+            text=f"Installierte Version: v{APP_VERSION}",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=COLOR_MUTED_TEXT
+        ).pack(side="left")
+
+        self.btn_check_update_settings = ctk.CTkButton(
+            up_action_row,
+            text="Jetzt auf Updates prüfen...",
+            image=get_ui_icon("download", "white", 13),
+            compound="left",
+            command=self._manual_check_updates_from_settings,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_PRIMARY,
+            hover_color=M3_PRIMARY_HOVER,
+            text_color=("#FFFFFF", "#00201C")
+        )
+        self.btn_check_update_settings.pack(side="right")
 
         # Theme / Erscheinungsbild Box
         theme_box = ctk.CTkFrame(
@@ -3858,6 +3884,14 @@ class SettingsDialog(ctk.CTkToplevel):
     def _on_theme_selected(self, choice: str):
         mode_map = {"Hell": "Light", "Dunkel": "Dark", "System": "System"}
         self.parent_app._toggle_theme(mode_map.get(choice, "Light"))
+
+    def _manual_check_updates_from_settings(self):
+        if hasattr(self, "btn_check_update_settings"):
+            self.btn_check_update_settings.configure(state="disabled", text="Prüfe...")
+        def on_done():
+            if hasattr(self, "btn_check_update_settings") and self.btn_check_update_settings.winfo_exists():
+                self.btn_check_update_settings.configure(state="normal", text="Jetzt auf Updates prüfen...")
+        self.parent_app._check_for_updates_manual(callback_on_finish=on_done)
 
     def _switch_tab(self, tab_name: str):
         if tab_name in self._tab_builders and tab_name not in self._built_tabs:
@@ -4324,17 +4358,20 @@ class GeminiTTSApp(ctk.CTk):
         )
         title_label.pack(side="left")
 
-        version_badge = ctk.CTkLabel(
+        self.version_badge = ctk.CTkButton(
             title_box,
             text=f"v{APP_VERSION}",
+            command=self._check_for_updates_manual,
+            height=24,
+            corner_radius=12,
             font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             fg_color=M3_PRIMARY_CONTAINER,
+            hover_color=("#B6E4DA", "#00645A"),
             text_color=M3_ON_PRIMARY_CONTAINER,
-            corner_radius=8,
-            padx=8,
-            pady=2
+            border_width=0,
+            cursor="hand2"
         )
-        version_badge.pack(side="left", padx=(10, 0))
+        self.version_badge.pack(side="left", padx=(10, 0))
 
         # Action Buttons on Right
         self.actions_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
@@ -7096,8 +7133,8 @@ class GeminiTTSApp(ctk.CTk):
         """Opens the full UpdateDialog."""
         UpdateDialog(self, update_info, self.update_service)
 
-    def _check_for_updates_manual(self):
-        """Triggered manually by user from settings."""
+    def _check_for_updates_manual(self, callback_on_finish: Optional[Callable] = None):
+        """Triggered manually by user from settings or header badge."""
         def run_check():
             try:
                 update_info = self.update_service.check_for_updates()
@@ -7115,6 +7152,9 @@ class GeminiTTSApp(ctk.CTk):
                     "Update-Prüfung",
                     f"Fehler bei der Verbindung zu GitHub: {e}"
                 ))
+            finally:
+                if callback_on_finish:
+                    self.after(0, callback_on_finish)
 
         threading.Thread(target=run_check, daemon=True).start()
 

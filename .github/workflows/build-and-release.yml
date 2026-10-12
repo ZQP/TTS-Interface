@@ -59,6 +59,20 @@ jobs:
           # Create copy with clean naming for portable distribution
           Copy-Item "dist/GeminiTTSStudio.exe" "dist/GeminiTTSStudio-Portable.exe"
 
+      - name: Generate Release Notes from Commits
+        id: gen_notes
+        shell: pwsh
+        run: |
+          $prevTag = git describe --tags --abbrev=0 HEAD^ 2>$null
+          if ($prevTag) {
+              $commits = git log --pretty=format:"* %s" "$prevTag..HEAD"
+              $content = "### 🚀 Neuerungen & Verbesserungen in dieser Version`n`n$commits`n`n---`n**Full Changelog**: https://github.com/${{ github.repository }}/compare/$prevTag...${{ github.ref_name }}"
+          } else {
+              $commits = git log -n 10 --pretty=format:"* %s"
+              $content = "### 🚀 Neuerungen & Verbesserungen in dieser Version`n`n$commits"
+          }
+          [System.IO.File]::WriteAllText("release_notes.md", $content, [System.Text.Encoding]::UTF8)
+
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
@@ -68,4 +82,4 @@ jobs:
             dist/GeminiTTSStudio-Portable.exe
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: release_notes.md
