@@ -47,6 +47,8 @@ from .config import (
     save_custom_voice,
     delete_custom_voice,
     get_all_voices,
+    SAMPLE_RADIO_PLAY_SCRIPT,
+    SAMPLE_STORY_TEXT,
 )
 from .icons import get_ui_icon
 from .tts_service import GeminiTTSService
@@ -4790,6 +4792,21 @@ class GeminiTTSApp(ctk.CTk):
         )
         self.more_tags_menu.pack(side="left", padx=3)
 
+        btn_sample_story = ctk.CTkButton(
+            quick_tag_bar,
+            text="📖 Beispiel-Geschichte",
+            command=self._load_sample_story,
+            height=26,
+            corner_radius=13,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color="transparent",
+            hover_color=M3_SURFACE_CONTAINER,
+            text_color=M3_PRIMARY,
+            border_width=1,
+            border_color=M3_OUTLINE
+        )
+        btn_sample_story.pack(side="right", padx=(6, 0))
+
         # Main text input area (Compact height 145px so everything fits comfortably on screen without scrollbar)
         self.text_input = ctk.CTkTextbox(
             self.single_text_card,
@@ -5293,10 +5310,23 @@ class GeminiTTSApp(ctk.CTk):
             )
             s_btn.pack(side="left", padx=2)
 
+        load_demo_btn = ctk.CTkButton(
+            script_tag_bar,
+            text="📖 Beispiel laden (Anna & Ben)",
+            command=self._load_sample_script,
+            height=26,
+            corner_radius=13,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            fg_color=M3_PRIMARY_CONTAINER,
+            hover_color=("#B6E4DA", "#00645A"),
+            text_color=M3_ON_PRIMARY_CONTAINER
+        )
+        load_demo_btn.pack(side="right", padx=(6, 0))
+
         # Script Textbox
         self.script_input = ctk.CTkTextbox(
             self.script_dialog_card,
-            height=145,
+            height=175,
             font=ctk.CTkFont(family=FONT_FAMILY, size=13),
             wrap="word",
             corner_radius=14,
@@ -5306,13 +5336,7 @@ class GeminiTTSApp(ctk.CTk):
             text_color=COLOR_PRIMARY_TEXT
         )
         self.script_input.pack(fill="x", padx=20, pady=(0, 8))
-        sample_script = (
-            "[Erzähler]: Es war ein stürmischer Abend in den Bergen.\n"
-            "[Anna]: (flüstert) Hast du das seltsame Geräusch da draußen gehört?\n"
-            "[Ben]: (lacht) Keine Sorge Anna, das ist nur der Wind in den Bäumen.\n"
-            "[Erzähler]: Doch plötzlich klopfte es dreimal leise an die Hüttentür."
-        )
-        self.script_input.insert("0.0", sample_script)
+        self.script_input.insert("0.0", SAMPLE_RADIO_PLAY_SCRIPT.strip())
         self.script_input.bind("<KeyRelease>", lambda e: self._on_script_text_changed())
 
         # Detected Speakers Cast Frame
@@ -6467,6 +6491,38 @@ class GeminiTTSApp(ctk.CTk):
 
     # ------------------ Multi-Speaker Script & Dialogue Helpers ------------------
 
+    def _load_sample_script(self):
+        """Loads the full complete 'Anna & Ben' radio play example into the script input."""
+        if not hasattr(self, "script_input"):
+            return
+        current_text = self.script_input.get("0.0", "end").strip()
+        if current_text and current_text != SAMPLE_RADIO_PLAY_SCRIPT.strip():
+            if not messagebox.askyesno(
+                "Beispiel laden",
+                "Möchtest du das vollständige Demo-Hörspiel von Anna und Ben in das Skriptfeld laden?\n\nDein aktueller Text im Skriptfeld wird dabei ersetzt."
+            ):
+                return
+
+        self.script_input.delete("0.0", "end")
+        self.script_input.insert("0.0", SAMPLE_RADIO_PLAY_SCRIPT.strip())
+        self._on_script_text_changed()
+
+    def _load_sample_story(self):
+        """Loads the narrative version of the 'Anna & Ben' story into the main single text input."""
+        if not hasattr(self, "text_input"):
+            return
+        current_text = self.text_input.get("0.0", "end").strip()
+        if current_text and current_text != SAMPLE_STORY_TEXT.strip():
+            if not messagebox.askyesno(
+                "Beispiel laden",
+                "Möchtest du die vollständige Beispiel-Geschichte von Anna und Ben in das Textfeld laden?\n\nDein aktueller Text wird dabei ersetzt."
+            ):
+                return
+
+        self.text_input.delete("0.0", "end")
+        self.text_input.insert("0.0", SAMPLE_STORY_TEXT.strip())
+        self._update_counters()
+
     def _insert_script_tag(self, tag: str):
         if hasattr(self, "script_input"):
             self.script_input.insert("insert", tag)
@@ -6513,9 +6569,18 @@ class GeminiTTSApp(ctk.CTk):
         v_labels = [format_voice_display_label(v) for v in all_v]
         defaults_palette = ["Charon", "Aoede", "Puck", "Fenrir", "Kore", "Zephyr"]
 
+        # Intelligent default voice matching for well-known characters & roles
+        speaker_presets = {
+            "erzähler": "Charon",
+            "narrator": "Charon",
+            "anna": "Aoede",
+            "ben": "Puck",
+        }
+
         for idx, spk in enumerate(speakers):
             if spk not in self.detected_speaker_vars:
-                def_choice = defaults_palette[idx % len(defaults_palette)]
+                preset_choice = speaker_presets.get(spk.strip().lower())
+                def_choice = preset_choice if preset_choice else defaults_palette[idx % len(defaults_palette)]
                 matched = [lbl for lbl in v_labels if def_choice.lower() in lbl.lower()]
                 self.detected_speaker_vars[spk] = ctk.StringVar(value=matched[0] if matched else v_labels[0])
 

@@ -286,7 +286,7 @@ if not os.getenv("GEMINI_API_KEY") and (Path.cwd() / ".env").exists():
     load_dotenv(Path.cwd() / ".env")
 
 # Application & Update Configuration
-APP_VERSION = "3.1.4"
+APP_VERSION = "3.1.5"
 GITHUB_REPO = "ZQP/TTS-Interface"
 
 # API Configuration
@@ -486,3 +486,39 @@ def save_api_key(api_key: str):
 def get_api_key() -> str:
     """Retrieve current API key."""
     return os.getenv("GEMINI_API_KEY", "")
+
+
+# =====================================================================
+# Built-in Sample Stories (Anna & Ben)
+# =====================================================================
+
+SAMPLE_RADIO_PLAY_SCRIPT = (
+    "[Erzähler]: Es war ein stürmischer Abend in den Bergen. Der Wind heulte um die alte Holzhütte, während im Kamin das Feuer leise knisterte.\n"
+    "[Anna]: (flüstert) Hast du das seltsame Geräusch da draußen gehört? Direkt vor dem Fenster!\n"
+    "[Ben]: (lacht) Keine Sorge, Anna. Das ist nur der Wind in den Kiefern. Wir sind hier meilenweit von der nächsten Zivilisation entfernt.\n"
+    "[Erzähler]: Doch plötzlich klopfte es dreimal leise an die schwere Holztür. Ein metallisches Klicken hallte durch den Raum.\n"
+    "[Anna]: (erschrocken) Der Wind klopft nicht an Türen, Ben! Sieh mal, unter der Türschwelle... da schiebt jemand etwas durch!\n"
+    "[Ben]: (erstaunt) Ein versiegelter Umschlag? Aus altem, schwerem Pergament!\n"
+    "[Erzähler]: Ben trat vorsichtig vor und hob den Brief auf. Das Siegel zeigte das uralte Wappen der Bergwacht – und auf der Rückseite stand in goldener Schrift Annas Name.\n"
+    "[Anna]: (neugierig und atemlos) Öffne ihn, schnell!\n"
+    "[Ben]: (liest leise und konzentriert vor) 'Wenn das Licht der Hütte brennt, ist die Zeit gekommen. Das Geheimnis der vergessenen Mine liegt unter der dritten Stufe.'\n"
+    "[Anna]: (begeistert) Die Mine unseres Urgroßvaters! Er hat die Hütte damals nicht ohne Grund genau hier gebaut!\n"
+    "[Ben]: (entschlossen) Hol die Taschenlampen, Anna. Heute Nacht finden wir heraus, was er vor fünfzig Jahren verborgen hat!\n"
+    "[Erzähler]: Draußen legte sich der Sturm wie durch ein Wunder. Vor ihnen lag eine Nacht voller Rätsel – und das größte Abenteuer ihres Lebens hatte gerade erst begonnen."
+)
+
+SAMPLE_STORY_TEXT = (
+    "[Tone: Atmosphärisch, warm und packend wie ein professionelles Hörbuch]\n\n"
+    "Es war ein stürmischer Abend in den Bergen. Der Wind heulte um die alte Holzhütte, während im Kamin das Feuer leise knisterte.\n\n"
+    "[flüstern] \"Hast du das seltsame Geräusch da draußen gehört? Direkt vor dem Fenster!\", raunte Anna und hielt den Atem an.\n\n"
+    "[lachen] Ben schüttelte schmunzelnd den Kopf. \"Keine Sorge, Anna. Das ist nur der Wind in den Kiefern. Wir sind hier meilenweit von der nächsten Zivilisation entfernt.\"\n\n"
+    "Doch plötzlich klopfte es dreimal leise an die schwere Holztür. Ein metallisches Klicken hallte durch den Raum.\n\n"
+    "[Pause]\n\n"
+    "\"Der Wind klopft nicht an Türen, Ben!\", flüsterte Anna mit pochendem Herzen. \"Sieh mal, unter der Türschwelle... da schiebt jemand etwas durch!\"\n\n"
+    "Ben trat vorsichtig vor und hob das Fundstück auf. \"Ein versiegelter Umschlag? Aus altem Pergament! Und darauf steht dein Name, Anna!\"\n\n"
+    "[flüstern] \"Öffne ihn, schnell!\"\n\n"
+    "Ben brach das rote Wachssiegel und las leise vor: \"Wenn das Licht der Hütte brennt, ist die Zeit gekommen. Das Geheimnis der vergessenen Mine liegt unter der dritten Stufe.\"\n\n"
+    "[begeistert] \"Die Mine unseres Urgroßvaters!\", rief Anna mit leuchtenden Augen. \"Er hat die Hütte damals nicht ohne Grund genau hier gebaut!\"\n\n"
+    "\"Hol die Taschenlampen, Anna\", sagte Ben mit entschlossener Stimme. \"Heute Nacht finden wir heraus, was er vor fünfzig Jahren verborgen hat!\"\n\n"
+    "Draußen legte sich der Sturm wie durch ein Wunder. Vor ihnen lag eine Nacht voller Rätsel – und das größte Abenteuer ihres Lebens hatte gerade erst begonnen."
+)
